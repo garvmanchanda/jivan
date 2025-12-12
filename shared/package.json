@@ -1,0 +1,15 @@
+{
+  "name": "jivan-shared",
+  "version": "1.0.0",
+  "description": "Shared types and utilities for Jivan healthcare app",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "lint": "eslint types --ext .ts",
+    "format": "prettier --write \"types/**/*.ts\""
+  },
+  "keywords": ["types", "shared"],
+  "author": "Jivan Team",
+  "license": "UNLICENSED"
+}
+

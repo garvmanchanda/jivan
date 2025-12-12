@@ -1,0 +1,190 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://jivan.health/schemas/llm-response.json",
+  "title": "Jivan LLM Response",
+  "description": "Schema for AI Healthcare Concierge responses",
+  "type": "object",
+  "required": ["intent", "summary", "recommendations", "follow_up_questions", "urgency_level", "suggested_actions"],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "description": "The classified intent of the user's message",
+      "enum": [
+        "health_inquiry",
+        "symptom_check",
+        "medication_question",
+        "appointment_request",
+        "habit_tracking",
+        "lifestyle_advice",
+        "emergency",
+        "general_conversation"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "description": "A clear, empathetic summary of what the AI understood from the user's message",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "recommendations": {
+      "type": "array",
+      "description": "List of actionable recommendations for the user",
+      "items": {
+        "type": "object",
+        "required": ["type", "title", "description", "priority"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Category of the recommendation",
+            "enum": [
+              "general",
+              "lifestyle",
+              "medication",
+              "appointment",
+              "emergency",
+              "monitoring",
+              "prevention"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title for the recommendation",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of the recommendation",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "priority": {
+            "type": "integer",
+            "description": "Priority order (1 = highest)",
+            "minimum": 1,
+            "maximum": 10
+          }
+        }
+      },
+      "minItems": 0,
+      "maxItems": 5
+    },
+    "follow_up_questions": {
+      "type": "array",
+      "description": "Clarifying questions to gather more information",
+      "items": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 200
+      },
+      "minItems": 0,
+      "maxItems": 3
+    },
+    "urgency_level": {
+      "type": "string",
+      "description": "How urgently the user should take action",
+      "enum": ["low", "medium", "high", "emergency"]
+    },
+    "suggested_actions": {
+      "type": "array",
+      "description": "Actionable buttons/options for the user interface",
+      "items": {
+        "type": "object",
+        "required": ["action_type", "label"],
+        "properties": {
+          "action_type": {
+            "type": "string",
+            "description": "The type of action to perform",
+            "enum": [
+              "track_symptom",
+              "schedule_appointment",
+              "set_reminder",
+              "log_medication",
+              "start_habit",
+              "call_provider",
+              "call_emergency",
+              "view_info",
+              "dismiss"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "User-facing button label",
+            "minLength": 2,
+            "maxLength": 50
+          },
+          "payload": {
+            "type": "object",
+            "description": "Additional data for the action",
+            "additionalProperties": true
+          }
+        }
+      },
+      "minItems": 0,
+      "maxItems": 4
+    },
+    "confidence_score": {
+      "type": "number",
+      "description": "Optional confidence score for the response",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "disclaimer": {
+      "type": "string",
+      "description": "Optional medical disclaimer text",
+      "maxLength": 300
+    }
+  },
+  "examples": [
+    {
+      "intent": "symptom_check",
+      "summary": "I understand your child has had a low-grade fever of around 100°F since yesterday. This is concerning you and you're wondering if you should be worried.",
+      "recommendations": [
+        {
+          "type": "monitoring",
+          "title": "Monitor Temperature",
+          "description": "Continue monitoring the temperature every 4-6 hours. A fever of 100°F in a 5-year-old is generally considered low-grade.",
+          "priority": 1
+        },
+        {
+          "type": "general",
+          "title": "Ensure Hydration",
+          "description": "Make sure your child drinks plenty of fluids - water, clear broths, or electrolyte solutions.",
+          "priority": 2
+        },
+        {
+          "type": "lifestyle",
+          "title": "Comfort & Rest",
+          "description": "Keep them comfortable with light clothing and ensure they get plenty of rest.",
+          "priority": 3
+        }
+      ],
+      "follow_up_questions": [
+        "Is your child experiencing any other symptoms like cough, runny nose, or ear pain?",
+        "Is your child eating and drinking normally?",
+        "Has your child been exposed to anyone who's been sick recently?"
+      ],
+      "urgency_level": "low",
+      "suggested_actions": [
+        {
+          "action_type": "track_symptom",
+          "label": "Log Fever",
+          "payload": {
+            "symptom_type": "fever",
+            "value": 100
+          }
+        },
+        {
+          "action_type": "set_reminder",
+          "label": "Remind to Check in 4 Hours",
+          "payload": {
+            "reminder_type": "symptom_check",
+            "delay_hours": 4
+          }
+        }
+      ],
+      "disclaimer": "This information is for guidance only. If symptoms worsen or you're concerned, please contact your pediatrician."
+    }
+  ]
+}
+

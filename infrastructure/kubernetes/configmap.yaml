@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jivan-config
+  namespace: jivan
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  API_PREFIX: "/api/v1"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  WORKER_CONCURRENCY: "5"
+  JOB_TIMEOUT_MS: "300000"
+  RATE_LIMIT_WINDOW_MS: "900000"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  S3_AUDIO_PREFIX: "audio/"
+  S3_REPORTS_PREFIX: "reports/"
+  AWS_REGION: "us-east-1"
+

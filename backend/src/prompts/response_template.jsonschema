@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Healthcare Response",
+  "description": "Structured response format for healthcare guidance",
+  "type": "object",
+  "required": [
+    "summary",
+    "causes",
+    "self_care",
+    "red_flags",
+    "recommendations",
+    "follow_up"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Brief 2-3 sentence overview of the situation",
+      "minLength": 50,
+      "maxLength": 500
+    },
+    "causes": {
+      "type": "array",
+      "description": "Possible causes (not diagnoses)",
+      "items": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 200
+      },
+      "minItems": 2,
+      "maxItems": 6
+    },
+    "self_care": {
+      "type": "array",
+      "description": "Evidence-based self-care steps",
+      "items": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 300
+      },
+      "minItems": 3,
+      "maxItems": 8
+    },
+    "red_flags": {
+      "type": "array",
+      "description": "Warning signs requiring immediate medical attention",
+      "items": {
+        "type": "string",
+        "minLength": 15,
+        "maxLength": 300
+      },
+      "minItems": 1,
+      "maxItems": 6
+    },
+    "recommendations": {
+      "type": "array",
+      "description": "Next steps and recommendations",
+      "items": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 300
+      },
+      "minItems": 2,
+      "maxItems": 6
+    },
+    "follow_up": {
+      "type": "array",
+      "description": "Trackable follow-up actions",
+      "items": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 200
+      },
+      "minItems": 1,
+      "maxItems": 5
+    }
+  },
+  "additionalProperties": false
+}
+

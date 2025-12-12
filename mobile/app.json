@@ -1,0 +1,27 @@
+{
+  "name": "Jivan",
+  "displayName": "Jivan Healthcare Concierge",
+  "version": "1.0.0",
+  "description": "Your personal healthcare concierge",
+  "main": "index.js",
+  "ios": {
+    "bundleIdentifier": "com.jivan.healthcare",
+    "buildNumber": "1",
+    "infoPlist": {
+      "NSMicrophoneUsageDescription": "We need access to your microphone to record voice queries",
+      "NSCameraUsageDescription": "We need access to your camera to scan medical reports",
+      "NSPhotoLibraryUsageDescription": "We need access to your photo library to upload medical reports"
+    }
+  },
+  "android": {
+    "package": "com.jivan.healthcare",
+    "versionCode": 1,
+    "permissions": [
+      "android.permission.RECORD_AUDIO",
+      "android.permission.CAMERA",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE"
+    ]
+  }
+}
+

@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Jivan",
+    "slug": "jivan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jivan.app"
+    },
+    "android": {
+      "package": "com.jivan.app"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Jivan to access your microphone for voice queries."
+        }
+      ]
+    ]
+  }
+}
+
