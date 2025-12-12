@@ -1,0 +1,21 @@
+# Ignore mobile app files for backend deployment
+node_modules/
+app/
+assets/
+services/
+mobile/
+jivann/
+infrastructure/
+shared/
+*.md
+.expo/
+.env
+.env.example
+.env.template
+package.json
+package-lock.json
+tsconfig.json
+types.ts
+app.json
+start.sh
+supabase-schema.sql
