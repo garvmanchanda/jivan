@@ -2,10 +2,8 @@ import axios, { AxiosError } from 'axios';
 import { AIResponse } from '../types';
 import NetInfo from '@react-native-community/netinfo';
 
-// API Configuration
-// For physical device: use your computer's IP address
-// For iOS Simulator: use localhost
-const API_URL = __DEV__ ? 'http://192.168.1.6:3000' : 'YOUR_PRODUCTION_URL';
+// API Configuration - Using deployed Render backend
+const API_URL = 'https://jivan-backend.onrender.com';
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000; // 1 second
 const REQUEST_TIMEOUT = 30000; // 30 seconds
