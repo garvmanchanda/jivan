@@ -9,6 +9,14 @@
     "paths": {
       "@/*": ["./*"]
     }
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "backend",
+    "supabase/functions",
+    "jivann",
+    "ios",
+    "android"
+  ]
 }
 

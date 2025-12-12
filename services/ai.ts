@@ -1,55 +1,20 @@
-import axios, { AxiosError } from 'axios';
 import { AIResponse } from '../types';
 import NetInfo from '@react-native-community/netinfo';
 
-// API Configuration - Using deployed Render backend
-const API_URL = 'https://jivan-backend.onrender.com';
+// Supabase Edge Functions URL - using the existing Supabase project
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://gzmfehoyqyjydegwgbjz.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+
+// Construct Edge Function URLs
+const TRANSCRIBE_URL = `${SUPABASE_URL}/functions/v1/transcribe`;
+const ANALYZE_URL = `${SUPABASE_URL}/functions/v1/analyze`;
+
 const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY = 1000; // 1 second
+const INITIAL_RETRY_DELAY = 500; // 500ms - faster retry for edge functions
 const REQUEST_TIMEOUT = 30000; // 30 seconds
-
-// Track if backend has been warmed up this session
-let isBackendWarm = false;
-let warmupPromise: Promise<void> | null = null;
-
-// Configure axios with timeout
-axios.defaults.timeout = REQUEST_TIMEOUT;
 
 // Sleep utility for retry delays
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Warm up the backend (call health endpoint to wake it from cold start)
-export const warmupBackend = async (): Promise<void> => {
-  // If already warm, skip
-  if (isBackendWarm) {
-    console.log('Backend already warm');
-    return;
-  }
-
-  // If warmup is in progress, wait for it
-  if (warmupPromise) {
-    console.log('Warmup already in progress, waiting...');
-    return warmupPromise;
-  }
-
-  // Start warmup
-  warmupPromise = (async () => {
-    try {
-      console.log('Warming up backend...');
-      const startTime = Date.now();
-      await axios.get(`${API_URL}/`, { timeout: 60000 }); // 60s timeout for cold start
-      const elapsed = Date.now() - startTime;
-      console.log(`Backend warm! (took ${elapsed}ms)`);
-      isBackendWarm = true;
-    } catch (error) {
-      console.log('Warmup ping failed, but continuing anyway');
-    } finally {
-      warmupPromise = null;
-    }
-  })();
-
-  return warmupPromise;
-};
 
 // Check network connectivity
 const checkNetworkConnection = async (): Promise<boolean> => {
@@ -67,50 +32,35 @@ async function retryWithBackoff<T>(
   try {
     return await fn();
   } catch (error) {
-    // If no more retries, throw the error
     if (attempt >= retries) {
       throw error;
     }
 
-    // Check if error is retryable
     const isRetryable = isRetryableError(error);
     if (!isRetryable) {
       throw error;
     }
 
     console.log(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
-    
-    // Wait with exponential backoff
     await sleep(delay);
-    
-    // Retry with exponentially increased delay
     return retryWithBackoff(fn, retries, delay * 2, attempt + 1);
   }
 }
 
 // Determine if error is retryable
 function isRetryableError(error: any): boolean {
-  // Network errors are retryable
   if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
     return true;
   }
-
-  // Timeout errors are retryable
   if (error.message?.includes('timeout')) {
     return true;
   }
-
-  // HTTP 5xx errors are retryable
-  if (error.response?.status >= 500 && error.response?.status < 600) {
+  if (error.status >= 500 && error.status < 600) {
     return true;
   }
-
-  // HTTP 429 (rate limit) is retryable
-  if (error.response?.status === 429) {
+  if (error.status === 429) {
     return true;
   }
-
-  // Other errors are not retryable
   return false;
 }
 
@@ -120,32 +70,26 @@ function getUserFriendlyError(error: any): string {
     return 'An unexpected error occurred. Please try again.';
   }
 
-  // Network connectivity issues
   if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
     return 'Connection timed out. Please check your internet connection and try again.';
   }
 
-  // No network
-  if (error.message?.includes('Network Error')) {
+  if (error.message?.includes('Network Error') || error.message?.includes('network')) {
     return 'No internet connection. Please check your network and try again.';
   }
 
-  // Server errors
-  if (error.response?.status >= 500) {
+  if (error.status >= 500) {
     return 'Our servers are experiencing issues. Please try again in a few moments.';
   }
 
-  // Rate limiting
-  if (error.response?.status === 429) {
+  if (error.status === 429) {
     return 'Too many requests. Please wait a moment and try again.';
   }
 
-  // Client errors
-  if (error.response?.status >= 400 && error.response?.status < 500) {
-    return error.response?.data?.error || 'Something went wrong. Please try again.';
+  if (error.status >= 400 && error.status < 500) {
+    return error.message || 'Something went wrong. Please try again.';
   }
 
-  // Generic error
   return 'Unable to process your request. Please try again.';
 }
 
@@ -177,9 +121,8 @@ const getFallbackResponse = (query: string): AIResponse => {
   };
 };
 
-// Transcribe audio with retry and fallback
+// Transcribe audio using Supabase Edge Function
 export const transcribeAudio = async (audioUri: string): Promise<string> => {
-  // Check network first
   const isConnected = await checkNetworkConnection();
   if (!isConnected) {
     throw new Error('No internet connection. Please check your network and try again.');
@@ -194,18 +137,41 @@ export const transcribeAudio = async (audioUri: string): Promise<string> => {
         name: 'recording.m4a',
       } as any);
 
-      console.log('Calling Whisper API for transcription...');
-      const response = await axios.post(`${API_URL}/transcribe`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: REQUEST_TIMEOUT,
-      });
+      console.log('Calling Whisper API via Edge Function...');
 
-      if (!response.data?.transcript) {
-        throw new Error('Invalid transcription response');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      try {
+        const response = await fetch(TRANSCRIBE_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const error = new Error(errorData.error || `HTTP ${response.status}`);
+          (error as any).status = response.status;
+          throw error;
+        }
+
+        const data = await response.json();
+
+        if (!data?.transcript) {
+          throw new Error('Invalid transcription response');
+        }
+
+        console.log('Transcription successful');
+        return data.transcript;
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      console.log('Transcription successful');
-      return response.data.transcript;
     });
   } catch (error) {
     console.error('Transcription failed after retries:', error);
@@ -213,12 +179,15 @@ export const transcribeAudio = async (audioUri: string): Promise<string> => {
   }
 };
 
-// Get AI response with retry and fallback
+// Callback type for streaming updates
+export type StreamCallback = (partialContent: string) => void;
+
+// Get AI response with streaming support
 export const getAIResponse = async (
   query: string,
-  profileContext?: { age: number; recentVitals?: any }
+  profileContext?: { age: number; recentVitals?: any },
+  onStreamUpdate?: StreamCallback
 ): Promise<AIResponse> => {
-  // Check network first
   const isConnected = await checkNetworkConnection();
   if (!isConnected) {
     throw new Error('No internet connection. Please check your network and try again.');
@@ -226,31 +195,101 @@ export const getAIResponse = async (
 
   try {
     return await retryWithBackoff(async () => {
-      console.log('Calling OpenAI API for analysis...');
-      const response = await axios.post(
-        `${API_URL}/analyze`,
-        {
-          query,
-          context: profileContext,
-        },
-        {
-          timeout: REQUEST_TIMEOUT,
+      console.log('Calling OpenAI API via Edge Function...');
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      try {
+        const response = await fetch(ANALYZE_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query,
+            context: profileContext,
+            stream: !!onStreamUpdate,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const error = new Error(errorData.error || `HTTP ${response.status}`);
+          (error as any).status = response.status;
+          throw error;
         }
-      );
 
-      if (!response.data) {
-        throw new Error('Invalid AI response');
+        // Handle streaming response
+        if (onStreamUpdate && response.headers.get('content-type')?.includes('text/event-stream')) {
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let fullContent = '';
+
+          if (reader) {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value);
+              const lines = chunk.split('\n').filter(line => line.startsWith('data:'));
+
+              for (const line of lines) {
+                const data = line.replace('data: ', '').trim();
+                if (data === '[DONE]') continue;
+
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.content) {
+                    fullContent += parsed.content;
+                    onStreamUpdate(fullContent);
+                  }
+                } catch {
+                  // Skip invalid JSON
+                }
+              }
+            }
+          }
+
+          // Parse the final JSON response
+          try {
+            const result = JSON.parse(fullContent);
+            if (!result.summary) {
+              throw new Error('Invalid AI response');
+            }
+            console.log('Streaming AI analysis complete');
+            return result;
+          } catch {
+            throw new Error('Failed to parse streaming response');
+          }
+        }
+
+        // Handle non-streaming response
+        const data = await response.json();
+
+        if (!data) {
+          throw new Error('Invalid AI response');
+        }
+
+        console.log('AI analysis successful');
+        return data;
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      console.log('AI analysis successful');
-      return response.data;
     });
   } catch (error) {
     console.error('AI analysis failed after retries:', error);
-    
-    // Return fallback response instead of crashing
     console.log('Returning fallback response...');
     return getFallbackResponse(query);
   }
 };
 
+// Warmup function - no longer needed for Edge Functions (no cold starts!)
+// Keeping for backward compatibility but it's now a no-op
+export const warmupBackend = async (): Promise<void> => {
+  console.log('Edge Functions have no cold starts - warmup not needed');
+};

@@ -1,24 +1,39 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { transcribeAudio, getAIResponse } from '../services/ai';
 import { getActiveProfileId, getProfiles, saveConversation } from '../services/supabaseStorage';
 import { Conversation } from '../types';
 
+// Silence detection config
+const SILENCE_THRESHOLD = -45; // dB level considered silence
+const SILENCE_DURATION_MS = 2000; // 2 seconds of silence to auto-stop
+const MIN_RECORDING_MS = 1000; // Minimum recording duration before auto-stop
+
 export default function RecordScreen() {
   const router = useRouter();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStage, setProcessingStage] = useState<'transcribing' | 'analyzing' | 'done'>('transcribing');
   const [transcript, setTranscript] = useState('');
+  const [streamingContent, setStreamingContent] = useState('');
+  const [audioLevel, setAudioLevel] = useState(0);
   const pulseAnim = useState(new Animated.Value(1))[0];
+  const dotAnim = useRef(new Animated.Value(0)).current;
+  const silenceStartRef = useRef<number | null>(null);
+  const recordingStartRef = useRef<number | null>(null);
+  const meteringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     startRecording();
     return () => {
       if (recording) {
         recording.stopAndUnloadAsync();
+      }
+      if (meteringIntervalRef.current) {
+        clearInterval(meteringIntervalRef.current);
       }
     };
   }, []);
@@ -42,6 +57,20 @@ export default function RecordScreen() {
     }
   }, [isRecording]);
 
+  // Animated dots for "analyzing" stage
+  useEffect(() => {
+    if (processingStage === 'analyzing') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(dotAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(dotAnim, { toValue: 2, duration: 400, useNativeDriver: true }),
+          Animated.timing(dotAnim, { toValue: 3, duration: 400, useNativeDriver: true }),
+          Animated.timing(dotAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        ])
+      ).start();
+    }
+  }, [processingStage]);
+
   const startRecording = async () => {
     try {
       const permission = await Audio.requestPermissionsAsync();
@@ -56,27 +85,76 @@ export default function RecordScreen() {
         playsInSilentModeIOS: true,
       });
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      // Use recording options with metering enabled
+      const recordingOptions = {
+        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      };
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
       setRecording(newRecording);
       setIsRecording(true);
+      recordingStartRef.current = Date.now();
+      silenceStartRef.current = null;
+
+      // Start metering for silence detection
+      meteringIntervalRef.current = setInterval(async () => {
+        try {
+          const status = await newRecording.getStatusAsync();
+          if (status.isRecording && status.metering !== undefined) {
+            const level = status.metering;
+            setAudioLevel(level);
+
+            const now = Date.now();
+            const recordingDuration = now - (recordingStartRef.current || now);
+
+            // Only check for silence after minimum recording time
+            if (recordingDuration > MIN_RECORDING_MS) {
+              if (level < SILENCE_THRESHOLD) {
+                // Start silence timer if not already started
+                if (silenceStartRef.current === null) {
+                  silenceStartRef.current = now;
+                } else if (now - silenceStartRef.current > SILENCE_DURATION_MS) {
+                  // Auto-stop after silence duration
+                  console.log('Auto-stopping due to silence detection');
+                  stopRecordingRef.current?.();
+                }
+              } else {
+                // Reset silence timer on sound
+                silenceStartRef.current = null;
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore metering errors
+        }
+      }, 100);
     } catch (err) {
       console.error('Failed to start recording', err);
       router.back();
     }
   };
 
+  // Use ref for stopRecording to avoid stale closure in metering interval
+  const stopRecordingRef = useRef<(() => void) | null>(null);
+
   const stopRecording = async () => {
     if (!recording) return;
 
+    // Clear metering interval
+    if (meteringIntervalRef.current) {
+      clearInterval(meteringIntervalRef.current);
+      meteringIntervalRef.current = null;
+    }
+
     setIsRecording(false);
     setIsProcessing(true);
+    setProcessingStage('transcribing');
 
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      
+
       if (!uri) {
         Alert.alert(
           'Recording Failed',
@@ -113,16 +191,23 @@ export default function RecordScreen() {
       const profiles = await getProfiles();
       const activeProfile = profiles.find(p => p.id === activeProfileId);
 
-      console.log('Getting AI analysis...');
+      console.log('Getting AI analysis with streaming...');
+      setProcessingStage('analyzing');
 
-      // Get AI response with retry logic and fallback
-      const aiResponse = await getAIResponse(transcribedText, {
-        age: activeProfile?.age || 30,
-      });
+      // Get AI response with streaming for perceived speed
+      const aiResponse = await getAIResponse(
+        transcribedText,
+        { age: activeProfile?.age || 30 },
+        // Streaming callback - update UI as response comes in
+        (partialContent: string) => {
+          setStreamingContent(partialContent);
+        }
+      );
 
       console.log('AI analysis complete');
+      setProcessingStage('done');
 
-      // Save conversation (even if using fallback response)
+      // Save conversation
       const conversation: Conversation = {
         id: Date.now().toString(),
         profileId: activeProfileId!,
@@ -134,7 +219,7 @@ export default function RecordScreen() {
       };
       await saveConversation(conversation);
 
-      // Navigate to response screen with data directly (faster than re-fetching)
+      // Navigate to response screen with data directly
       router.replace({
         pathname: '/response',
         params: {
@@ -159,6 +244,11 @@ export default function RecordScreen() {
     }
   };
 
+  // Assign stopRecording to ref for use in metering interval
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording;
+  });
+
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -167,13 +257,41 @@ export default function RecordScreen() {
 
       <View style={styles.centerSection}>
         {isProcessing ? (
-          <>
+          <ScrollView
+            style={styles.processingContainer}
+            contentContainerStyle={styles.processingContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.processingIcon}>
-              <Text style={styles.processingText}>⏳</Text>
+              <Text style={styles.processingEmoji}>
+                {processingStage === 'transcribing' ? '🎧' : processingStage === 'analyzing' ? '🧠' : '✅'}
+              </Text>
             </View>
-            <Text style={styles.statusText}>Analyzing...</Text>
-            {transcript && <Text style={styles.transcript}>{transcript}</Text>}
-          </>
+            <Text style={styles.statusText}>
+              {processingStage === 'transcribing'
+                ? 'Transcribing...'
+                : processingStage === 'analyzing'
+                ? 'Analyzing...'
+                : 'Done!'}
+            </Text>
+
+            {transcript && (
+              <View style={styles.transcriptBox}>
+                <Text style={styles.transcriptLabel}>You said:</Text>
+                <Text style={styles.transcript}>"{transcript}"</Text>
+              </View>
+            )}
+
+            {streamingContent && processingStage === 'analyzing' && (
+              <View style={styles.streamingBox}>
+                <Text style={styles.streamingLabel}>Jeevan is thinking...</Text>
+                <Text style={styles.streamingText} numberOfLines={8}>
+                  {streamingContent.substring(0, 300)}
+                  {streamingContent.length > 300 ? '...' : ''}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         ) : (
           <>
             <Animated.View
@@ -219,7 +337,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
+  },
+  processingContainer: {
+    flex: 1,
+    width: '100%',
+  },
+  processingContent: {
+    alignItems: 'center',
+    paddingTop: 40,
+    paddingBottom: 40,
   },
   recordingCircle: {
     width: 200,
@@ -247,20 +374,55 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  processingText: {
-    fontSize: 80,
+  processingEmoji: {
+    fontSize: 60,
   },
   statusText: {
-    marginTop: 24,
+    marginTop: 16,
     fontSize: 20,
     color: '#7c3aed',
     fontWeight: '600',
   },
+  transcriptBox: {
+    marginTop: 24,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+  },
+  transcriptLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   transcript: {
-    marginTop: 20,
     fontSize: 16,
+    color: '#ccc',
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
+  streamingBox: {
+    marginTop: 20,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    borderLeftWidth: 3,
+    borderLeftColor: '#7c3aed',
+  },
+  streamingLabel: {
+    fontSize: 12,
+    color: '#7c3aed',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  streamingText: {
+    fontSize: 14,
     color: '#888',
-    textAlign: 'center',
+    lineHeight: 20,
   },
   bottomSection: {
     paddingBottom: 60,
