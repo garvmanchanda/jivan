@@ -14,7 +14,11 @@
       "bundleIdentifier": "com.jivan.app"
     },
     "android": {
-      "package": "com.jivan.app"
+      "package": "com.jivan.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "plugins": [
       [
@@ -23,7 +27,12 @@
           "microphonePermission": "Allow Jivan to access your microphone for voice queries."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7c6371bf-cbe3-448f-a6cd-7f5cb3365f6d"
+      }
+    },
+    "owner": "garvmanchanda"
   }
 }
-

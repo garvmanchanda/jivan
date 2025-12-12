@@ -8,11 +8,48 @@ const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000; // 1 second
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 
+// Track if backend has been warmed up this session
+let isBackendWarm = false;
+let warmupPromise: Promise<void> | null = null;
+
 // Configure axios with timeout
 axios.defaults.timeout = REQUEST_TIMEOUT;
 
 // Sleep utility for retry delays
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Warm up the backend (call health endpoint to wake it from cold start)
+export const warmupBackend = async (): Promise<void> => {
+  // If already warm, skip
+  if (isBackendWarm) {
+    console.log('Backend already warm');
+    return;
+  }
+
+  // If warmup is in progress, wait for it
+  if (warmupPromise) {
+    console.log('Warmup already in progress, waiting...');
+    return warmupPromise;
+  }
+
+  // Start warmup
+  warmupPromise = (async () => {
+    try {
+      console.log('Warming up backend...');
+      const startTime = Date.now();
+      await axios.get(`${API_URL}/`, { timeout: 60000 }); // 60s timeout for cold start
+      const elapsed = Date.now() - startTime;
+      console.log(`Backend warm! (took ${elapsed}ms)`);
+      isBackendWarm = true;
+    } catch (error) {
+      console.log('Warmup ping failed, but continuing anyway');
+    } finally {
+      warmupPromise = null;
+    }
+  })();
+
+  return warmupPromise;
+};
 
 // Check network connectivity
 const checkNetworkConnection = async (): Promise<boolean> => {

@@ -202,9 +202,9 @@ Please provide comprehensive health guidance following all the principles and st
 
     console.log('Analyzing query:', query);
     
-    // Call GPT-4 with optimized parameters
+    // Call GPT-3.5-turbo for faster responses (3-5x faster than GPT-4)
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-3.5-turbo',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

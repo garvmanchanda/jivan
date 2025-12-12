@@ -134,10 +134,16 @@ export default function RecordScreen() {
       };
       await saveConversation(conversation);
 
-      // Navigate to response screen
+      // Navigate to response screen with data directly (faster than re-fetching)
       router.replace({
         pathname: '/response',
-        params: { conversationId: conversation.id },
+        params: {
+          conversationId: conversation.id,
+          query: transcribedText,
+          summary: aiResponse.summary,
+          recommendations: JSON.stringify(aiResponse.recommendations),
+          redFlag: aiResponse.redFlags.join('\n\n'),
+        },
       });
 
     } catch (error: any) {

@@ -12,11 +12,28 @@ import { Conversation } from '../types';
 
 export default function ResponseScreen() {
   const router = useRouter();
-  const { conversationId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
   const [conversation, setConversation] = useState<Conversation | null>(null);
 
   useEffect(() => {
-    loadConversation();
+    // Check if data was passed directly (faster path)
+    if (params.query && params.summary) {
+      const directConversation: Conversation = {
+        id: params.conversationId as string,
+        profileId: '',
+        query: params.query as string,
+        summary: params.summary as string,
+        recommendations: params.recommendations
+          ? JSON.parse(params.recommendations as string)
+          : [],
+        redFlag: params.redFlag as string || '',
+        timestamp: new Date().toISOString(),
+      };
+      setConversation(directConversation);
+    } else {
+      // Fallback: load from database (for viewing old conversations)
+      loadConversation();
+    }
   }, []);
 
   const loadConversation = async () => {
@@ -24,7 +41,7 @@ export default function ResponseScreen() {
     if (!profileId) return;
 
     const conversations = await getConversations(profileId);
-    const found = conversations.find(c => c.id === conversationId);
+    const found = conversations.find(c => c.id === params.conversationId);
     setConversation(found || null);
   };
 
