@@ -17,6 +17,7 @@ import {
   saveVital,
   getConversations,
   deleteProfile,
+  updateProfileAge,
 } from '../services/supabaseStorage';
 import { Profile, Vital, Conversation } from '../types';
 
@@ -50,7 +51,7 @@ export default function ProfileScreen() {
     setVitals(profileVitals);
 
     const profileConversations = await getConversations(profileId);
-    setConversations(profileConversations.slice(0, 5)); // Last 5
+    setConversations(profileConversations.slice(0, 10)); // Last 10
   };
 
   const handleEditVital = (type: string, label: string, unit: string, isDaily: boolean, currentValue?: number) => {
@@ -80,6 +81,12 @@ export default function ProfileScreen() {
     };
 
     await saveVital(profile.id, newVital);
+    
+    // If updating age, also update the profile's age field
+    if (editingVital.type === 'age') {
+      await updateProfileAge(profile.id, Math.floor(value));
+    }
+    
     setEditModalVisible(false);
     setEditValue('');
     setEditingVital(null);

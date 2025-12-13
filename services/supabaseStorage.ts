@@ -127,6 +127,18 @@ export const saveProfile = async (profile: Profile): Promise<void> => {
   }
 };
 
+export const updateProfileAge = async (profileId: string, age: number): Promise<void> => {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ age, updated_at: new Date().toISOString() })
+    .eq('id', profileId);
+
+  if (error) {
+    console.error('Error updating profile age:', error);
+    throw error;
+  }
+};
+
 export const deleteProfile = async (profileId: string): Promise<void> => {
   const { error } = await supabase
     .from('profiles')
@@ -169,7 +181,14 @@ export const getVitals = async (profileId: string): Promise<Vital[]> => {
     return [];
   }
 
-  return data as Vital[];
+  // Transform database format (snake_case) to app format (camelCase)
+  return (data || []).map(v => ({
+    type: v.type,
+    value: v.value,
+    unit: v.unit,
+    date: v.date,
+    isDaily: v.is_daily || false,
+  })) as Vital[];
 };
 
 export const saveVital = async (profileId: string, vital: Vital): Promise<void> => {
