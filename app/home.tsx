@@ -13,7 +13,6 @@ import {
   getActiveProfileId,
   setActiveProfileId,
 } from '../services/supabaseStorage';
-import { warmupBackend } from '../services/ai';
 import { Profile } from '../types';
 
 const { width } = Dimensions.get('window');
@@ -25,8 +24,6 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadProfiles();
-    // Warm up backend in background to avoid cold start delay later
-    warmupBackend();
   }, []);
 
   // Reload profiles when screen comes into focus

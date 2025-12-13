@@ -5,9 +5,18 @@ const multer = require('multer');
 const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
+const PromptManager = require('./services/promptManager');
+const MemoryRetrieval = require('./services/memoryRetrieval');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
+
+// Initialize Supabase client for direct queries
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -249,8 +258,193 @@ Please provide comprehensive health guidance following all the principles and st
   }
 });
 
+// =====================================================
+// V2 ENDPOINTS - Intelligent Memory System
+// =====================================================
+
+// V2 Analyze endpoint with memory and context
+app.post('/v2/analyze', async (req, res) => {
+  try {
+    const { query, profileId, context } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ 
+        error: 'No query provided',
+        retryable: false 
+      });
+    }
+
+    if (!profileId) {
+      return res.status(400).json({ 
+        error: 'No profileId provided',
+        retryable: false 
+      });
+    }
+
+    console.log(`[V2 Analyze] Processing query for profile ${profileId}`);
+
+    // Use PromptManager for intelligent processing
+    const promptManager = new PromptManager();
+    const response = await promptManager.processQuery(query, profileId, context || {});
+
+    console.log('[V2 Analyze] Response ready');
+    res.json(response);
+
+  } catch (error) {
+    console.error('[V2 Analyze] Error:', error.message || error);
+
+    // Determine if error is retryable
+    const isRetryable = 
+      error.message?.includes('timeout') ||
+      error.message?.includes('ECONNRESET') ||
+      error.message?.includes('ETIMEDOUT') ||
+      error.code === 'ECONNABORTED' ||
+      error.status >= 500 ||
+      error.status === 429;
+
+    const statusCode = error.status === 429 ? 429 : (isRetryable ? 503 : 500);
+
+    res.status(statusCode).json({ 
+      error: 'Failed to analyze query',
+      details: error.message,
+      retryable: isRetryable
+    });
+  }
+});
+
+// Get active issues for a profile
+app.get('/memory/issues/:profileId', async (req, res) => {
+  try {
+    const { profileId } = req.params;
+
+    const { data, error } = await supabase
+      .from('active_issues')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('last_mentioned_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ issues: data || [] });
+
+  } catch (error) {
+    console.error('[Get Issues] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch issues',
+      details: error.message 
+    });
+  }
+});
+
+// Get insights for a profile
+app.get('/memory/insights/:profileId', async (req, res) => {
+  try {
+    const { profileId } = req.params;
+
+    const { data, error } = await supabase
+      .from('insight_memory')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('confidence', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ insights: data || [] });
+
+  } catch (error) {
+    console.error('[Get Insights] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch insights',
+      details: error.message 
+    });
+  }
+});
+
+// Get event memory for a profile
+app.get('/memory/events/:profileId', async (req, res) => {
+  try {
+    const { profileId } = req.params;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const { data, error } = await supabase
+      .from('event_memory')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    res.json({ events: data || [] });
+
+  } catch (error) {
+    console.error('[Get Events] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch events',
+      details: error.message 
+    });
+  }
+});
+
+// Manual issue status update (for user control)
+app.patch('/memory/issues/:issueId', async (req, res) => {
+  try {
+    const { issueId } = req.params;
+    const { status, severity, notes } = req.body;
+
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (status) updateData.status = status;
+    if (severity) updateData.severity = severity;
+    if (notes) updateData.notes = notes;
+
+    const { error } = await supabase
+      .from('active_issues')
+      .update(updateData)
+      .eq('id', issueId);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Issue updated successfully' });
+
+  } catch (error) {
+    console.error('[Update Issue] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update issue',
+      details: error.message 
+    });
+  }
+});
+
+// Get issue history
+app.get('/memory/issues/:issueId/history', async (req, res) => {
+  try {
+    const { issueId } = req.params;
+
+    const { data, error } = await supabase
+      .from('issue_history')
+      .select('*')
+      .eq('issue_id', issueId)
+      .order('changed_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ history: data || [] });
+
+  } catch (error) {
+    console.error('[Get Issue History] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch issue history',
+      details: error.message 
+    });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Jivan Backend running on port ${PORT}`);
+  console.log(`📊 V2 API with intelligent memory system enabled`);
 });
 

@@ -168,6 +168,24 @@ export default function ProfileScreen() {
           <Text style={styles.profileAge}>{profile.age} years</Text>
         </View>
 
+        {/* Health Journey Banner */}
+        <TouchableOpacity
+          style={styles.journeyBanner}
+          onPress={() => router.push({
+            pathname: '/health-journey',
+            params: { profileId: profile.id, profileName: profile.name },
+          })}
+        >
+          <View style={styles.journeyContent}>
+            <Text style={styles.journeyIcon}>🌟</Text>
+            <View style={styles.journeyText}>
+              <Text style={styles.journeyTitle}>View Health Journey</Text>
+              <Text style={styles.journeySubtitle}>Track issues, insights & timeline</Text>
+            </View>
+            <Text style={styles.journeyArrow}>→</Text>
+          </View>
+        </TouchableOpacity>
+
         {/* Static Vitals Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>PROFILE INFO</Text>
@@ -344,6 +362,40 @@ const styles = StyleSheet.create({
   profileAge: {
     color: '#666',
     fontSize: 16,
+  },
+  journeyBanner: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 32,
+    borderWidth: 2,
+    borderColor: '#4A90E2',
+  },
+  journeyContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  journeyIcon: {
+    fontSize: 32,
+    marginRight: 16,
+  },
+  journeyText: {
+    flex: 1,
+  },
+  journeyTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  journeySubtitle: {
+    color: '#4A90E2',
+    fontSize: 13,
+  },
+  journeyArrow: {
+    color: '#4A90E2',
+    fontSize: 24,
+    fontWeight: '600',
   },
   section: {
     marginBottom: 32,

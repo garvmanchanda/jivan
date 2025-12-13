@@ -27,12 +27,3 @@ export const clearOldLocalData = async (): Promise<void> => {
   }
 };
 
-/**
- * Check if user needs migration
- * Returns true if old data exists locally
- */
-export const needsMigration = async (): Promise<boolean> => {
-  const oldPhone = await AsyncStorage.getItem('@jivan_user_phone');
-  return oldPhone !== null;
-};
-

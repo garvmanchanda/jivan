@@ -1,13 +1,13 @@
-import { AIResponse } from '../types';
+import { AIResponse, AIResponseV2 } from '../types';
 import NetInfo from '@react-native-community/netinfo';
 
-// Supabase Edge Functions URL - using the existing Supabase project
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://gzmfehoyqyjydegwgbjz.supabase.co';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// Backend API URL
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://jivan-backend.onrender.com';
 
-// Construct Edge Function URLs
-const TRANSCRIBE_URL = `${SUPABASE_URL}/functions/v1/transcribe`;
-const ANALYZE_URL = `${SUPABASE_URL}/functions/v1/analyze`;
+// Construct API URLs
+const TRANSCRIBE_URL = `${API_URL}/transcribe`;
+const ANALYZE_URL = `${API_URL}/analyze`;
+const ANALYZE_V2_URL = `${API_URL}/v2/analyze`;
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 500; // 500ms - faster retry for edge functions
@@ -121,7 +121,7 @@ const getFallbackResponse = (query: string): AIResponse => {
   };
 };
 
-// Transcribe audio using Supabase Edge Function
+// Transcribe audio
 export const transcribeAudio = async (audioUri: string): Promise<string> => {
   const isConnected = await checkNetworkConnection();
   if (!isConnected) {
@@ -145,9 +145,6 @@ export const transcribeAudio = async (audioUri: string): Promise<string> => {
       try {
         const response = await fetch(TRANSCRIBE_URL, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          },
           body: formData,
           signal: controller.signal,
         });
@@ -204,13 +201,11 @@ export const getAIResponse = async (
         const response = await fetch(ANALYZE_URL, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             query,
             context: profileContext,
-            stream: !!onStreamUpdate,
           }),
           signal: controller.signal,
         });
@@ -224,51 +219,6 @@ export const getAIResponse = async (
           throw error;
         }
 
-        // Handle streaming response
-        if (onStreamUpdate && response.headers.get('content-type')?.includes('text/event-stream')) {
-          const reader = response.body?.getReader();
-          const decoder = new TextDecoder();
-          let fullContent = '';
-
-          if (reader) {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              const chunk = decoder.decode(value);
-              const lines = chunk.split('\n').filter(line => line.startsWith('data:'));
-
-              for (const line of lines) {
-                const data = line.replace('data: ', '').trim();
-                if (data === '[DONE]') continue;
-
-                try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.content) {
-                    fullContent += parsed.content;
-                    onStreamUpdate(fullContent);
-                  }
-                } catch {
-                  // Skip invalid JSON
-                }
-              }
-            }
-          }
-
-          // Parse the final JSON response
-          try {
-            const result = JSON.parse(fullContent);
-            if (!result.summary) {
-              throw new Error('Invalid AI response');
-            }
-            console.log('Streaming AI analysis complete');
-            return result;
-          } catch {
-            throw new Error('Failed to parse streaming response');
-          }
-        }
-
-        // Handle non-streaming response
         const data = await response.json();
 
         if (!data) {
@@ -288,8 +238,110 @@ export const getAIResponse = async (
   }
 };
 
-// Warmup function - no longer needed for Edge Functions (no cold starts!)
-// Keeping for backward compatibility but it's now a no-op
-export const warmupBackend = async (): Promise<void> => {
-  console.log('Edge Functions have no cold starts - warmup not needed');
+// V2 API with memory and context - NEW INTELLIGENT SYSTEM
+export const getAIResponseV2 = async (
+  query: string,
+  profileId: string,
+  profileContext?: { age: number; recentVitals?: any }
+): Promise<AIResponseV2> => {
+  const isConnected = await checkNetworkConnection();
+  if (!isConnected) {
+    throw new Error('No internet connection. Please check your network and try again.');
+  }
+
+  try {
+    return await retryWithBackoff(async () => {
+      console.log('Calling V2 API with memory context...');
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      try {
+        const response = await fetch(ANALYZE_V2_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query,
+            profileId,
+            context: profileContext,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const error = new Error(errorData.error || `HTTP ${response.status}`);
+          (error as any).status = response.status;
+          throw error;
+        }
+
+        const data = await response.json();
+
+        if (!data) {
+          throw new Error('Invalid AI response');
+        }
+
+        console.log('V2 AI analysis successful');
+        return data;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    });
+  } catch (error) {
+    console.error('V2 AI analysis failed after retries:', error);
+    // Return fallback in V2 format
+    const fallback = getFallbackResponse(query);
+    return {
+      reflection: fallback.summary,
+      interpretation: "I'm currently unable to access my memory system, but I want to help you.",
+      guidance: fallback.selfCare,
+      redFlags: fallback.redFlags,
+      followUp: "Please retry in a few moments, and I'll be able to provide more personalized guidance.",
+      recommendations: fallback.recommendations
+    };
+  }
 };
+
+// Fetch active issues for a profile
+export const getActiveIssues = async (profileId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/memory/issues/${profileId}`);
+    if (!response.ok) throw new Error('Failed to fetch issues');
+    const data = await response.json();
+    return data.issues || [];
+  } catch (error) {
+    console.error('Error fetching active issues:', error);
+    return [];
+  }
+};
+
+// Fetch insights for a profile
+export const getInsights = async (profileId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/memory/insights/${profileId}`);
+    if (!response.ok) throw new Error('Failed to fetch insights');
+    const data = await response.json();
+    return data.insights || [];
+  } catch (error) {
+    console.error('Error fetching insights:', error);
+    return [];
+  }
+};
+
+// Fetch event memory for a profile
+export const getEventMemory = async (profileId: string, limit = 20) => {
+  try {
+    const response = await fetch(`${API_URL}/memory/events/${profileId}?limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch events');
+    const data = await response.json();
+    return data.events || [];
+  } catch (error) {
+    console.error('Error fetching event memory:', error);
+    return [];
+  }
+};
+

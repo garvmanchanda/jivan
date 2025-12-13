@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
-import { transcribeAudio, getAIResponse } from '../services/ai';
+import { transcribeAudio, getAIResponseV2 } from '../services/ai';
 import { getActiveProfileId, getProfiles, saveConversation } from '../services/supabaseStorage';
 import { Conversation } from '../types';
 
@@ -191,28 +191,25 @@ export default function RecordScreen() {
       const profiles = await getProfiles();
       const activeProfile = profiles.find(p => p.id === activeProfileId);
 
-      console.log('Getting AI analysis with streaming...');
+      console.log('Getting AI analysis...');
       setProcessingStage('analyzing');
 
-      // Get AI response with streaming for perceived speed
-      const aiResponse = await getAIResponse(
+      // Get AI response with V2 (memory-aware)
+      const aiResponse = await getAIResponseV2(
         transcribedText,
-        { age: activeProfile?.age || 30 },
-        // Streaming callback - update UI as response comes in
-        (partialContent: string) => {
-          setStreamingContent(partialContent);
-        }
+        activeProfileId!,
+        { age: activeProfile?.age || 30 }
       );
 
       console.log('AI analysis complete');
       setProcessingStage('done');
 
-      // Save conversation
+      // Save conversation (V2 format: reflection + interpretation = summary)
       const conversation: Conversation = {
         id: Date.now().toString(),
         profileId: activeProfileId!,
         query: transcribedText,
-        summary: aiResponse.summary,
+        summary: `${aiResponse.reflection}\n\n${aiResponse.interpretation}`,
         recommendations: aiResponse.recommendations,
         redFlag: aiResponse.redFlags.join('\n\n'),
         timestamp: new Date().toISOString(),
@@ -225,7 +222,7 @@ export default function RecordScreen() {
         params: {
           conversationId: conversation.id,
           query: transcribedText,
-          summary: aiResponse.summary,
+          summary: `${aiResponse.reflection}\n\n${aiResponse.interpretation}`,
           recommendations: JSON.stringify(aiResponse.recommendations),
           redFlag: aiResponse.redFlags.join('\n\n'),
         },
