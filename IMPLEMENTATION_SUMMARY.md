@@ -141,7 +141,7 @@ New functions:
 - `getInsights()` - Fetches insights
 - `getEventMemory()` - Fetches timeline
 
-**Updated:** All API calls now point to backend URL instead of Supabase edge functions.
+**Updated:** All API calls now use Supabase Edge Functions.
 
 ---
 
@@ -376,20 +376,18 @@ After 1-2 weeks of usage:
 
 ## 🔧 Configuration & Environment
 
-### Backend Environment Variables (Render):
+### Backend (Supabase Edge Functions):
 
-```env
-OPENAI_API_KEY=<your_key>
-SUPABASE_URL=https://gzmfehoyqyjydegwgbjz.supabase.co
-SUPABASE_ANON_KEY=<your_key>
-ALLOWED_ORIGINS=*
-NODE_ENV=production
+Set secrets via Supabase CLI:
+```bash
+supabase secrets set OPENAI_API_KEY=<your_key>
 ```
+
+Edge Functions automatically have access to `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### Frontend Environment Variables (Expo):
 
 ```env
-EXPO_PUBLIC_API_URL=https://jivan-backend.onrender.com
 EXPO_PUBLIC_SUPABASE_URL=https://gzmfehoyqyjydegwgbjz.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<your_key>
 ```
@@ -475,14 +473,12 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=<your_key>
 
 - [ ] Run `supabase-schema-v2.sql` in Supabase
 - [ ] Verify 4 new tables exist
-- [ ] Push code to GitHub
-- [ ] Add environment variables to Render
-- [ ] Deploy backend to Render
-- [ ] Test `/v2/analyze` endpoint
-- [ ] Update mobile app with new API URL
-- [ ] Test end-to-end flow
+- [ ] Set `OPENAI_API_KEY` secret: `supabase secrets set OPENAI_API_KEY=...`
+- [ ] Deploy Edge Functions: `supabase functions deploy analyze-v2`
+- [ ] Test `/functions/v1/analyze-v2` endpoint
+- [ ] Test end-to-end flow in Expo app
 - [ ] Setup cron job for insight detection (optional)
-- [ ] Monitor logs for errors
+- [ ] Monitor Edge Function logs in Supabase Dashboard
 
 ---
 

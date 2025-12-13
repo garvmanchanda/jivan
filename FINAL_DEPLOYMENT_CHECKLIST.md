@@ -35,35 +35,31 @@ All code is now ready! I've just updated:
 
 ---
 
-### **STEP 2: Update Backend Dependencies**
+### **STEP 2: Deploy Edge Functions (if not already deployed)**
+
+Backend runs on Supabase Edge Functions. See `SUPABASE_EDGE_FUNCTIONS_DEPLOY.md` for full details.
 
 ```bash
-cd backend
-npm install
+# Install Supabase CLI if needed
+brew install supabase/tap/supabase
+
+# Link your project
+supabase link --project-ref gzmfehoyqyjydegwgbjz
+
+# Set secrets
+supabase secrets set OPENAI_API_KEY=your_openai_key_here
+
+# Deploy functions
+supabase functions deploy analyze-v2
+supabase functions deploy memory-issues
+supabase functions deploy memory-insights
+supabase functions deploy memory-events
 ```
-
-This will install `@supabase/supabase-js` (already added to package.json).
-
----
-
-### **STEP 3: Deploy to GitHub & Render**
-
-```bash
-# From project root
-git add .
-git commit -m "feat: Implement intelligent memory system v2 - ready for production"
-git push
-```
-
-**Render will automatically deploy.**
 
 **Verify deployment:**
-1. Go to your [Render Dashboard](https://dashboard.render.com)
-2. Click on `jivan-backend`
-3. Wait for deploy to complete (2-3 minutes)
-4. Check logs for: `📊 V2 API with intelligent memory system enabled`
-5. Click the URL (should be `https://jivan-backend.onrender.com`)
-6. You should see: `{"status":"healthy","message":"Jivan Backend API"}`
+1. Go to [Supabase Dashboard](https://app.supabase.com/project/gzmfehoyqyjydegwgbjz)
+2. Click "Edge Functions" in the sidebar
+3. Verify all 4 functions are deployed and active
 
 ---
 
@@ -105,8 +101,9 @@ git push
 
 ### Issue: "Cannot connect to backend"
 **Solution:**
-- Check Render deployment is live
-- Verify `EXPO_PUBLIC_API_URL` is set to `https://jivan-backend.onrender.com`
+- Check Supabase Edge Functions are deployed
+- Verify `EXPO_PUBLIC_SUPABASE_URL` is set correctly in `.env`
+- Check Edge Function logs in Supabase Dashboard
 
 ### Issue: "Table 'active_issues' does not exist"
 **Solution:**
@@ -115,16 +112,14 @@ git push
 
 ### Issue: App crashes when recording
 **Solution:**
-- Check backend logs on Render
-- Verify environment variables are set:
-  - `SUPABASE_URL`
-  - `SUPABASE_ANON_KEY`
-  - `OPENAI_API_KEY`
+- Check Edge Function logs in Supabase Dashboard
+- Verify secrets are set: `supabase secrets list`
+- Ensure `OPENAI_API_KEY` secret is configured
 
-### Issue: "Module not found: @supabase/supabase-js"
+### Issue: Edge function not responding
 **Solution:**
-- Run `cd backend && npm install`
-- Push to GitHub again
+- Check logs: `supabase functions logs analyze-v2`
+- Redeploy: `supabase functions deploy analyze-v2`
 
 ---
 
@@ -149,9 +144,8 @@ git push
 Before using the app, verify:
 
 - [ ] Supabase: 4 new tables exist (`active_issues`, `event_memory`, `insight_memory`, `issue_history`)
-- [ ] Backend: `npm install` completed successfully
-- [ ] Backend: Deployed to Render and showing "healthy" status
-- [ ] Backend logs: Show "V2 API with intelligent memory system enabled"
+- [ ] Supabase: Edge Functions deployed (`analyze-v2`, `memory-issues`, `memory-insights`, `memory-events`)
+- [ ] Supabase: `OPENAI_API_KEY` secret is set
 - [ ] Expo: Restarted and QR code scanned on iPhone
 - [ ] First test: Can record and get a response
 - [ ] Second test: "View Health Journey" button visible on Profile page
@@ -184,8 +178,8 @@ The app will now:
 ---
 
 **Need Help?** Check:
-1. Backend logs on Render
+1. Edge Function logs in Supabase Dashboard
 2. Supabase tables (should have data after first query)
 3. Expo console for errors
-4. `IMPLEMENTATION_SUMMARY.md` for technical details
+4. `SUPABASE_EDGE_FUNCTIONS_DEPLOY.md` for deployment details
 
