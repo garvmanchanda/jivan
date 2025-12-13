@@ -1,13 +1,14 @@
 import { AIResponse, AIResponseV2 } from '../types';
 import NetInfo from '@react-native-community/netinfo';
 
-// Backend API URL
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://jivan-backend.onrender.com';
+// Supabase Edge Functions URL
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://gzmfehoyqyjydegwgbjz.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Construct API URLs
-const TRANSCRIBE_URL = `${API_URL}/transcribe`;
-const ANALYZE_URL = `${API_URL}/analyze`;
-const ANALYZE_V2_URL = `${API_URL}/v2/analyze`;
+// Construct Edge Function URLs
+const TRANSCRIBE_URL = `${SUPABASE_URL}/functions/v1/transcribe`;
+const ANALYZE_URL = `${SUPABASE_URL}/functions/v1/analyze`;
+const ANALYZE_V2_URL = `${SUPABASE_URL}/functions/v1/analyze-v2`;
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 500; // 500ms - faster retry for edge functions
@@ -145,6 +146,9 @@ export const transcribeAudio = async (audioUri: string): Promise<string> => {
       try {
         const response = await fetch(TRANSCRIBE_URL, {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
           body: formData,
           signal: controller.signal,
         });
@@ -201,6 +205,7 @@ export const getAIResponse = async (
         const response = await fetch(ANALYZE_URL, {
           method: 'POST',
           headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -260,6 +265,7 @@ export const getAIResponseV2 = async (
         const response = await fetch(ANALYZE_V2_URL, {
           method: 'POST',
           headers: {
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -309,7 +315,11 @@ export const getAIResponseV2 = async (
 // Fetch active issues for a profile
 export const getActiveIssues = async (profileId: string) => {
   try {
-    const response = await fetch(`${API_URL}/memory/issues/${profileId}`);
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/memory-issues/${profileId}`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
     if (!response.ok) throw new Error('Failed to fetch issues');
     const data = await response.json();
     return data.issues || [];
@@ -322,7 +332,11 @@ export const getActiveIssues = async (profileId: string) => {
 // Fetch insights for a profile
 export const getInsights = async (profileId: string) => {
   try {
-    const response = await fetch(`${API_URL}/memory/insights/${profileId}`);
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/memory-insights/${profileId}`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
     if (!response.ok) throw new Error('Failed to fetch insights');
     const data = await response.json();
     return data.insights || [];
@@ -335,7 +349,11 @@ export const getInsights = async (profileId: string) => {
 // Fetch event memory for a profile
 export const getEventMemory = async (profileId: string, limit = 20) => {
   try {
-    const response = await fetch(`${API_URL}/memory/events/${profileId}?limit=${limit}`);
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/memory-events/${profileId}?limit=${limit}`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
     if (!response.ok) throw new Error('Failed to fetch events');
     const data = await response.json();
     return data.events || [];
