@@ -6,7 +6,7 @@ import { transcribeAudio, getAIResponseV2 } from '../services/ai';
 import { getActiveProfileId, getProfiles, saveConversation } from '../services/supabaseStorage';
 import { Conversation } from '../types';
 import { AlertModal } from '../components/CustomModal';
-import { colors, typography, spacing, borderRadius, shadows } from '../constants/theme';
+import { colors, typography, spacing, borderRadius } from '../constants/theme';
 
 const SILENCE_THRESHOLD = -45;
 const SILENCE_DURATION_MS = 2000;
@@ -20,12 +20,10 @@ export default function RecordScreen() {
   const [processingStage, setProcessingStage] = useState<'transcribing' | 'analyzing' | 'done'>('transcribing');
   const [transcript, setTranscript] = useState('');
   const [streamingContent, setStreamingContent] = useState('');
-  const [audioLevel, setAudioLevel] = useState(0);
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ title: '', message: '', buttons: [] as any[] });
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.3)).current;
   const waveAnim1 = useRef(new Animated.Value(1)).current;
   const waveAnim2 = useRef(new Animated.Value(1)).current;
   const waveAnim3 = useRef(new Animated.Value(1)).current;
@@ -47,26 +45,16 @@ export default function RecordScreen() {
 
   useEffect(() => {
     if (isRecording) {
-      // Main pulse animation
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.1, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.08, duration: 800, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
 
-      // Glow animation
       Animated.loop(
         Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0.3, duration: 1000, useNativeDriver: true }),
-        ])
-      ).start();
-
-      // Wave animations
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(waveAnim1, { toValue: 1.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(waveAnim1, { toValue: 1.2, duration: 600, useNativeDriver: true }),
           Animated.timing(waveAnim1, { toValue: 1, duration: 600, useNativeDriver: true }),
         ])
       ).start();
@@ -74,7 +62,7 @@ export default function RecordScreen() {
       Animated.loop(
         Animated.sequence([
           Animated.delay(200),
-          Animated.timing(waveAnim2, { toValue: 1.4, duration: 700, useNativeDriver: true }),
+          Animated.timing(waveAnim2, { toValue: 1.3, duration: 700, useNativeDriver: true }),
           Animated.timing(waveAnim2, { toValue: 1, duration: 700, useNativeDriver: true }),
         ])
       ).start();
@@ -82,7 +70,7 @@ export default function RecordScreen() {
       Animated.loop(
         Animated.sequence([
           Animated.delay(400),
-          Animated.timing(waveAnim3, { toValue: 1.5, duration: 800, useNativeDriver: true }),
+          Animated.timing(waveAnim3, { toValue: 1.4, duration: 800, useNativeDriver: true }),
           Animated.timing(waveAnim3, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
@@ -125,7 +113,6 @@ export default function RecordScreen() {
           const status = await newRecording.getStatusAsync();
           if (status.isRecording && status.metering !== undefined) {
             const level = status.metering;
-            setAudioLevel(level);
 
             const now = Date.now();
             const recordingDuration = now - (recordingStartRef.current || now);
@@ -135,7 +122,6 @@ export default function RecordScreen() {
                 if (silenceStartRef.current === null) {
                   silenceStartRef.current = now;
                 } else if (now - silenceStartRef.current > SILENCE_DURATION_MS) {
-                  console.log('Auto-stopping due to silence detection');
                   stopRecordingRef.current?.();
                 }
               } else {
@@ -143,9 +129,7 @@ export default function RecordScreen() {
               }
             }
           }
-        } catch (e) {
-          // Ignore metering errors
-        }
+        } catch (e) {}
       }, 100);
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -245,16 +229,10 @@ export default function RecordScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isProcessing ? 'Processing...' : 'Recording'}
-        </Text>
-        <View style={{ width: 44 }} />
-      </View>
+      {/* Back Button - Purple like mic */}
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <Text style={styles.backIcon}>←</Text>
+      </TouchableOpacity>
 
       <View style={styles.centerSection}>
         {isProcessing ? (
@@ -263,28 +241,18 @@ export default function RecordScreen() {
             contentContainerStyle={styles.processingContent}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.processingIconContainer}>
-              <View style={styles.processingIcon}>
-                <Text style={styles.processingEmoji}>
-                  {processingStage === 'transcribing' ? '🎧' : processingStage === 'analyzing' ? '🧠' : '✅'}
-                </Text>
-              </View>
+            <View style={styles.processingIcon}>
+              <Text style={styles.processingEmoji}>
+                {processingStage === 'transcribing' ? '🎧' : processingStage === 'analyzing' ? '🧠' : '✅'}
+              </Text>
             </View>
 
             <Text style={styles.processingTitle}>
               {processingStage === 'transcribing'
-                ? 'Transcribing your voice...'
+                ? 'Transcribing...'
                 : processingStage === 'analyzing'
-                ? 'Analyzing your query...'
-                : 'All done!'}
-            </Text>
-
-            <Text style={styles.processingSubtitle}>
-              {processingStage === 'transcribing'
-                ? 'Converting speech to text'
-                : processingStage === 'analyzing'
-                ? 'Getting personalized insights'
-                : 'Preparing your response'}
+                ? 'Analyzing...'
+                : 'Done!'}
             </Text>
 
             {transcript && (
@@ -296,10 +264,8 @@ export default function RecordScreen() {
 
             {streamingContent && processingStage === 'analyzing' && (
               <View style={styles.streamingBox}>
-                <Text style={styles.streamingLabel}>JEEVAN IS THINKING</Text>
                 <Text style={styles.streamingText} numberOfLines={8}>
                   {streamingContent.substring(0, 300)}
-                  {streamingContent.length > 300 ? '...' : ''}
                 </Text>
               </View>
             )}
@@ -307,22 +273,16 @@ export default function RecordScreen() {
         ) : (
           <View style={styles.recordingView}>
             {/* Animated Waves */}
-            <Animated.View style={[styles.wave, styles.wave3, { transform: [{ scale: waveAnim3 }], opacity: waveAnim3.interpolate({ inputRange: [1, 1.5], outputRange: [0.1, 0] }) }]} />
-            <Animated.View style={[styles.wave, styles.wave2, { transform: [{ scale: waveAnim2 }], opacity: waveAnim2.interpolate({ inputRange: [1, 1.4], outputRange: [0.15, 0] }) }]} />
-            <Animated.View style={[styles.wave, styles.wave1, { transform: [{ scale: waveAnim1 }], opacity: waveAnim1.interpolate({ inputRange: [1, 1.3], outputRange: [0.2, 0] }) }]} />
-            
-            {/* Glow Effect */}
-            <Animated.View style={[styles.glow, { opacity: glowAnim }]} />
+            <Animated.View style={[styles.wave, styles.wave3, { transform: [{ scale: waveAnim3 }], opacity: waveAnim3.interpolate({ inputRange: [1, 1.4], outputRange: [0.1, 0] }) }]} />
+            <Animated.View style={[styles.wave, styles.wave2, { transform: [{ scale: waveAnim2 }], opacity: waveAnim2.interpolate({ inputRange: [1, 1.3], outputRange: [0.15, 0] }) }]} />
+            <Animated.View style={[styles.wave, styles.wave1, { transform: [{ scale: waveAnim1 }], opacity: waveAnim1.interpolate({ inputRange: [1, 1.2], outputRange: [0.2, 0] }) }]} />
             
             {/* Recording Circle */}
             <Animated.View style={[styles.recordingCircle, { transform: [{ scale: pulseAnim }] }]}>
-              <View style={styles.innerCircle}>
-                <Text style={styles.micIcon}>🎤</Text>
-              </View>
+              <Text style={styles.micIcon}>🎤</Text>
             </Animated.View>
 
             <Text style={styles.listeningText}>Listening...</Text>
-            <Text style={styles.listeningHint}>Speak clearly, I'll stop when you're done</Text>
           </View>
         )}
       </View>
@@ -336,7 +296,7 @@ export default function RecordScreen() {
           >
             <View style={styles.stopIcon} />
           </TouchableOpacity>
-          <Text style={styles.stopHint}>Tap to stop</Text>
+          <Text style={styles.stopHint}>Stop</Text>
         </View>
       )}
 
@@ -357,30 +317,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.lg,
-  },
   backButton: {
+    position: 'absolute',
+    top: 60,
+    left: spacing.xl,
+    zIndex: 10,
     width: 44,
     height: 44,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   backIcon: {
     color: colors.textPrimary,
-    fontSize: 24,
-  },
-  headerTitle: {
-    color: colors.textPrimary,
-    fontSize: typography.lg,
-    fontWeight: typography.semibold,
+    fontSize: 22,
   },
   centerSection: {
     flex: 1,
@@ -395,43 +346,26 @@ const styles = StyleSheet.create({
   wave: {
     position: 'absolute',
     borderRadius: 9999,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: colors.primary,
   },
   wave1: {
-    width: 220,
-    height: 220,
-  },
-  wave2: {
-    width: 280,
-    height: 280,
-  },
-  wave3: {
-    width: 340,
-    height: 340,
-  },
-  glow: {
-    position: 'absolute',
     width: 200,
     height: 200,
-    borderRadius: 100,
-    backgroundColor: colors.primary,
-    ...shadows.glow,
+  },
+  wave2: {
+    width: 260,
+    height: 260,
+  },
+  wave3: {
+    width: 320,
+    height: 320,
   },
   recordingCircle: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadows.glow,
-  },
-  innerCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: colors.primaryDark,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -439,15 +373,9 @@ const styles = StyleSheet.create({
     fontSize: 50,
   },
   listeningText: {
-    color: colors.primary,
-    fontSize: typography.xxl,
-    fontWeight: typography.semibold,
-    marginTop: spacing.xxxl,
-  },
-  listeningHint: {
-    color: colors.textMuted,
-    fontSize: typography.base,
-    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    fontSize: typography.lg,
+    marginTop: spacing.xxl,
   },
   processingContainer: {
     flex: 1,
@@ -455,34 +383,25 @@ const styles = StyleSheet.create({
   },
   processingContent: {
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 100,
     paddingBottom: 40,
   },
-  processingIconContainer: {
-    marginBottom: spacing.xxl,
-  },
   processingIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.primary,
+    marginBottom: spacing.xl,
   },
   processingEmoji: {
-    fontSize: 44,
+    fontSize: 36,
   },
   processingTitle: {
     color: colors.textPrimary,
-    fontSize: typography.xl,
-    fontWeight: typography.semibold,
-    marginBottom: spacing.sm,
-  },
-  processingSubtitle: {
-    color: colors.textMuted,
-    fontSize: typography.base,
+    fontSize: typography.lg,
+    fontWeight: typography.medium,
     marginBottom: spacing.xxxl,
   },
   transcriptBox: {
@@ -492,14 +411,12 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    marginBottom: spacing.xl,
   },
   transcriptLabel: {
     fontSize: typography.xs,
     color: colors.textMuted,
     marginBottom: spacing.sm,
     letterSpacing: 1,
-    fontWeight: typography.semibold,
   },
   transcript: {
     fontSize: typography.md,
@@ -508,49 +425,40 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   streamingBox: {
+    marginTop: spacing.lg,
     backgroundColor: colors.card,
     borderRadius: borderRadius.lg,
-    padding: spacing.xl,
+    padding: spacing.lg,
     width: '100%',
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderLeftWidth: 3,
-  },
-  streamingLabel: {
-    fontSize: typography.xs,
-    color: colors.primary,
-    marginBottom: spacing.sm,
-    letterSpacing: 1,
-    fontWeight: typography.semibold,
   },
   streamingText: {
     fontSize: typography.sm,
     color: colors.textSecondary,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   bottomSection: {
     paddingBottom: 60,
     alignItems: 'center',
   },
   stopButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.cardBorder,
   },
   stopIcon: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     backgroundColor: colors.accentRed,
-    borderRadius: 4,
+    borderRadius: 3,
   },
   stopHint: {
     color: colors.textMuted,
-    fontSize: typography.sm,
-    marginTop: spacing.md,
+    fontSize: typography.xs,
+    marginTop: spacing.sm,
   },
 });

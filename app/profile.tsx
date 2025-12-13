@@ -23,7 +23,7 @@ import { CustomModal, AlertModal } from '../components/CustomModal';
 import { colors, typography, spacing, borderRadius, shadows } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
-const CARD_SIZE = (width - 60) / 2;
+const CARD_SIZE = (width - 72) / 3; // Smaller cards - 3 per row
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -377,14 +377,14 @@ const styles = StyleSheet.create({
   trackingGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   trackingCard: {
     width: CARD_SIZE,
     height: CARD_SIZE,
     backgroundColor: colors.card,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     justifyContent: 'space-between',
@@ -395,28 +395,28 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   trackingIcon: {
-    fontSize: 28,
+    fontSize: 20,
   },
   addButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   addButtonText: {
     color: colors.textSecondary,
-    fontSize: 18,
+    fontSize: 14,
   },
   trackingValue: {
     color: colors.textPrimary,
-    fontSize: typography.xxl,
+    fontSize: typography.lg,
     fontWeight: typography.bold,
   },
   trackingLabel: {
     color: colors.textMuted,
-    fontSize: typography.sm,
+    fontSize: typography.xs,
   },
   healthJourneyCard: {
     backgroundColor: colors.card,

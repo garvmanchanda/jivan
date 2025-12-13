@@ -87,7 +87,7 @@ export default function ResponseScreen() {
             <View style={styles.responseIconContainer}>
               <Text style={styles.responseIcon}>🌟</Text>
             </View>
-            <Text style={styles.responseLabel}>JEEVAN'S INSIGHT</Text>
+            <Text style={styles.responseLabel}>INSIGHT</Text>
           </View>
           
           <Text style={styles.summaryText}>{conversation.summary}</Text>
@@ -118,24 +118,20 @@ export default function ResponseScreen() {
           </View>
         )}
 
-        {/* Actions */}
+        {/* Minimal Text CTAs */}
         <View style={styles.actionsSection}>
           <TouchableOpacity 
-            style={styles.actionButton}
             onPress={() => router.push('/record')}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
           >
-            <Text style={styles.actionIcon}>🎤</Text>
-            <Text style={styles.actionText}>Ask Another Question</Text>
+            <Text style={styles.actionLink}>Ask another question →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.actionButton, styles.actionButtonSecondary]}
             onPress={() => router.push('/home')}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
           >
-            <Text style={styles.actionIcon}>🏠</Text>
-            <Text style={[styles.actionText, styles.actionTextSecondary]}>Back to Home</Text>
+            <Text style={styles.actionLinkSecondary}>Back to home</Text>
           </TouchableOpacity>
         </View>
 
@@ -329,31 +325,17 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   actionsSection: {
-    gap: spacing.md,
-  },
-  actionButton: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.lg,
-    gap: spacing.sm,
+    gap: spacing.lg,
+    paddingVertical: spacing.xl,
   },
-  actionButtonSecondary: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+  actionLink: {
+    color: colors.primary,
+    fontSize: typography.base,
+    fontWeight: typography.medium,
   },
-  actionIcon: {
-    fontSize: 18,
-  },
-  actionText: {
-    color: colors.textPrimary,
-    fontSize: typography.md,
-    fontWeight: typography.semibold,
-  },
-  actionTextSecondary: {
-    color: colors.textSecondary,
+  actionLinkSecondary: {
+    color: colors.textMuted,
+    fontSize: typography.sm,
   },
 });

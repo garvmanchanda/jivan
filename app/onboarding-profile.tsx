@@ -110,12 +110,6 @@ export default function OnboardingProfileScreen() {
         <Text style={styles.backIcon}>←</Text>
       </TouchableOpacity>
 
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressDotActive} />
-        <View style={styles.progressDotActive} />
-      </View>
-
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -130,17 +124,6 @@ export default function OnboardingProfileScreen() {
           </Text>
         </View>
 
-        {/* Avatar Section */}
-        <TouchableOpacity style={styles.avatarContainer} activeOpacity={0.8}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarIcon}>👤</Text>
-          </View>
-          <View style={styles.cameraButton}>
-            <Text style={styles.cameraIcon}>📷</Text>
-          </View>
-          <Text style={styles.uploadText}>UPLOAD PHOTO</Text>
-        </TouchableOpacity>
-
         {/* Form Fields */}
         <View style={styles.form}>
           {/* Name */}
@@ -154,8 +137,8 @@ export default function OnboardingProfileScreen() {
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
+                autoFocus
               />
-              <Text style={styles.inputIcon}>👤</Text>
             </View>
           </View>
 
@@ -231,7 +214,7 @@ export default function OnboardingProfileScreen() {
         </TouchableOpacity>
 
         <Text style={styles.privacyNote}>
-          🔒 Your data is private and stored locally
+          🔒 Your data is private and stored securely
         </Text>
       </ScrollView>
 
@@ -267,24 +250,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: typography.medium,
   },
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginTop: 70,
-  },
-  progressDotActive: {
-    width: 24,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-  },
   scrollView: {
     flex: 1,
   },
   content: {
     paddingHorizontal: spacing.xxl,
-    paddingTop: spacing.xxxl,
+    paddingTop: 120,
     paddingBottom: 40,
   },
   header: {
@@ -300,46 +271,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: typography.base,
     lineHeight: 22,
-  },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: spacing.xxxl,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
-  },
-  avatarIcon: {
-    fontSize: 40,
-    opacity: 0.5,
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: '35%',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cameraIcon: {
-    fontSize: 14,
-  },
-  uploadText: {
-    color: colors.primary,
-    fontSize: typography.xs,
-    fontWeight: typography.semibold,
-    marginTop: spacing.md,
-    letterSpacing: 1,
   },
   form: {
     marginBottom: spacing.xxl,
@@ -371,10 +302,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: typography.md,
     paddingVertical: spacing.lg,
-  },
-  inputIcon: {
-    fontSize: 18,
-    opacity: 0.5,
   },
   rowContainer: {
     flexDirection: 'row',

@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Dimensions,
   Animated,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -15,9 +14,7 @@ import {
   setActiveProfileId,
 } from '../services/supabaseStorage';
 import { Profile } from '../types';
-import { colors, typography, spacing, borderRadius, shadows } from '../constants/theme';
-
-const { width } = Dimensions.get('window');
+import { colors, typography, spacing, borderRadius } from '../constants/theme';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -25,11 +22,12 @@ export default function HomeScreen() {
   const [activeProfileId, setActiveProfile] = useState<string | null>(null);
   const [greeting, setGreeting] = useState('Good morning');
   const micScale = useRef(new Animated.Value(1)).current;
-  const micGlow = useRef(new Animated.Value(0.4)).current;
+  const micBounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadProfiles();
     updateGreeting();
+    startBounceAnimation();
   }, []);
 
   useFocusEffect(
@@ -43,6 +41,24 @@ export default function HomeScreen() {
     if (hour < 12) setGreeting('Good morning');
     else if (hour < 17) setGreeting('Good afternoon');
     else setGreeting('Good evening');
+  };
+
+  // Continuous gentle bounce animation
+  const startBounceAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(micBounce, {
+          toValue: -8,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(micBounce, {
+          toValue: 0,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   };
 
   const loadProfiles = async () => {
@@ -69,33 +85,19 @@ export default function HomeScreen() {
   };
 
   const handleMicPressIn = () => {
-    Animated.parallel([
-      Animated.spring(micScale, {
-        toValue: 0.92,
-        useNativeDriver: true,
-      }),
-      Animated.timing(micGlow, {
-        toValue: 0.8,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    Animated.spring(micScale, {
+      toValue: 0.92,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handleMicPressOut = () => {
-    Animated.parallel([
-      Animated.spring(micScale, {
-        toValue: 1,
-        friction: 3,
-        tension: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(micGlow, {
-        toValue: 0.4,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    Animated.spring(micScale, {
+      toValue: 1,
+      friction: 3,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handleMicPress = () => {
@@ -159,16 +161,25 @@ export default function HomeScreen() {
         {/* Greeting Text */}
         <Text style={styles.greetingText}>{greeting}, {activeProfile?.name || 'there'}</Text>
 
-        {/* Mic Button Section */}
+        {/* Mic Button Section - No shadow, with bounce */}
         <View style={styles.micSection}>
-          <Animated.View style={[styles.micGlow, { opacity: micGlow }]} />
           <TouchableOpacity
             onPressIn={handleMicPressIn}
             onPressOut={handleMicPressOut}
             onPress={handleMicPress}
             activeOpacity={1}
           >
-            <Animated.View style={[styles.micButton, { transform: [{ scale: micScale }] }]}>
+            <Animated.View 
+              style={[
+                styles.micButton, 
+                { 
+                  transform: [
+                    { scale: micScale },
+                    { translateY: micBounce }
+                  ] 
+                }
+              ]}
+            >
               <Text style={styles.micIcon}>🎤</Text>
             </Animated.View>
           </TouchableOpacity>
@@ -268,14 +279,6 @@ const styles = StyleSheet.create({
   micSection: {
     alignItems: 'center',
   },
-  micGlow: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: colors.primary,
-    ...shadows.glow,
-  },
   micButton: {
     width: 140,
     height: 140,
@@ -283,7 +286,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.glow,
   },
   micIcon: {
     fontSize: 50,
@@ -311,7 +313,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     borderRadius: borderRadius.full,
     gap: spacing.sm,
-    ...shadows.button,
   },
   profileInsightsIcon: {
     fontSize: 16,
