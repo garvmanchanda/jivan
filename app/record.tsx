@@ -198,7 +198,10 @@ export default function RecordScreen() {
       const aiResponse = await getAIResponseV2(
         transcribedText,
         activeProfileId!,
-        { age: activeProfile?.age || 30 }
+        { 
+          name: activeProfile?.name,
+          age: activeProfile?.age || 30 
+        }
       );
 
       console.log('AI analysis complete');
