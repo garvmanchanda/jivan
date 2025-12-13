@@ -13,9 +13,8 @@ import {
   getProfiles,
   getActiveProfileId,
   setActiveProfileId,
-  getVitals,
 } from '../services/supabaseStorage';
-import { Profile, Vital } from '../types';
+import { Profile } from '../types';
 import { colors, typography, spacing, borderRadius, shadows } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
@@ -24,7 +23,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeProfileId, setActiveProfile] = useState<string | null>(null);
-  const [vitals, setVitals] = useState<Vital[]>([]);
   const [greeting, setGreeting] = useState('Good morning');
   const micScale = useRef(new Animated.Value(1)).current;
   const micGlow = useRef(new Animated.Value(0.4)).current;
@@ -59,23 +57,15 @@ export default function HomeScreen() {
         const firstProfileId = loadedProfiles[0].id;
         setActiveProfile(firstProfileId);
         await setActiveProfileId(firstProfileId);
-        loadVitalsData(firstProfileId);
       } else {
         setActiveProfile(active);
-        loadVitalsData(active);
       }
     }
-  };
-
-  const loadVitalsData = async (profileId: string) => {
-    const profileVitals = await getVitals(profileId);
-    setVitals(profileVitals);
   };
 
   const handleProfileSelect = async (profileId: string) => {
     setActiveProfile(profileId);
     await setActiveProfileId(profileId);
-    loadVitalsData(profileId);
   };
 
   const handleMicPressIn = () => {
@@ -119,19 +109,10 @@ export default function HomeScreen() {
   };
 
   const activeProfile = profiles.find(p => p.id === activeProfileId);
-  
-  // Get latest vitals
-  const getLatestVital = (type: string) => {
-    const filtered = vitals.filter(v => v.type === type);
-    return filtered.length > 0 ? filtered[filtered.length - 1] : null;
-  };
-
-  const weightVital = getLatestVital('weight');
-  const heightVital = getLatestVital('height');
 
   return (
     <View style={styles.container}>
-      {/* Header with Profile Selector */}
+      {/* Top Nav - Profile Selector */}
       <View style={styles.header}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.profileScroll}>
           {profiles.map((profile) => (
@@ -162,77 +143,21 @@ export default function HomeScreen() {
             <Text style={styles.addProfileIcon}>+</Text>
           </TouchableOpacity>
         </ScrollView>
-        <TouchableOpacity style={styles.settingsButton}>
-          <Text style={styles.settingsIcon}>⚙️</Text>
-        </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Profile Avatar & Greeting */}
-        <View style={styles.greetingSection}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {activeProfile?.name?.charAt(0)?.toUpperCase() || '?'}
-              </Text>
-            </View>
-            <View style={styles.avatarBadge}>
-              <Text style={styles.avatarBadgeIcon}>✓</Text>
-            </View>
-          </View>
-          <Text style={styles.greetingText}>{greeting}, {activeProfile?.name || 'there'}</Text>
-          <Text style={styles.subGreetingText}>Let's check your progress</Text>
-        </View>
-
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{weightVital?.value || '--'}</Text>
-            <Text style={styles.statUnit}>kg</Text>
-            <Text style={styles.statLabel}>WEIGHT</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{heightVital?.value || '--'}</Text>
-            <Text style={styles.statUnit}>cm</Text>
-            <Text style={styles.statLabel}>HEIGHT</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activeProfile?.age || '--'}</Text>
-            <Text style={styles.statUnit}>yrs</Text>
-            <Text style={styles.statLabel}>AGE</Text>
+      {/* Main Content */}
+      <View style={styles.content}>
+        {/* Photo Circle Icon */}
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {activeProfile?.name?.charAt(0)?.toUpperCase() || '?'}
+            </Text>
           </View>
         </View>
 
-        {/* Health Journey Card */}
-        <TouchableOpacity
-          style={styles.healthJourneyCard}
-          onPress={() => router.push({
-            pathname: '/health-journey',
-            params: { profileId: activeProfileId, profileName: activeProfile?.name },
-          })}
-          activeOpacity={0.85}
-        >
-          <View style={styles.healthJourneyContent}>
-            <View style={styles.healthJourneyIcon}>
-              <Text style={styles.healthJourneyEmoji}>🌟</Text>
-            </View>
-            <View style={styles.healthJourneyText}>
-              <Text style={styles.healthJourneyTitle}>Your Health Journey</Text>
-              <Text style={styles.healthJourneySubtitle}>
-                3 new insights available based on your recent activity patterns.
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.viewTimelineButton} activeOpacity={0.8}>
-            <Text style={styles.viewTimelineText}>View Timeline</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
+        {/* Greeting Text */}
+        <Text style={styles.greetingText}>{greeting}, {activeProfile?.name || 'there'}</Text>
 
         {/* Mic Button Section */}
         <View style={styles.micSection}>
@@ -247,40 +172,22 @@ export default function HomeScreen() {
               <Text style={styles.micIcon}>🎤</Text>
             </Animated.View>
           </TouchableOpacity>
-          <Text style={styles.micTitle}>How can I help?</Text>
+          <Text style={styles.micTitle}>Ready when you are</Text>
           <Text style={styles.micSubtitle}>Tap to speak</Text>
         </View>
-      </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <Text style={[styles.navIcon, styles.navIconActive]}>🏠</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={handleProfilePress}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.navIcon}>👤</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <Text style={styles.navIcon}>📊</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-          <Text style={styles.navIcon}>📋</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Profile & Insights Floating Button */}
-      <TouchableOpacity 
-        style={styles.profileInsightsButton}
-        onPress={handleProfilePress}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.profileInsightsIcon}>✨</Text>
-        <Text style={styles.profileInsightsText}>Profile & Insights</Text>
-      </TouchableOpacity>
+      {/* Profile & Insights CTA at Bottom Center */}
+      <View style={styles.bottomSection}>
+        <TouchableOpacity 
+          style={styles.profileInsightsButton}
+          onPress={handleProfilePress}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.profileInsightsIcon}>✨</Text>
+          <Text style={styles.profileInsightsText}>Profile & Insights</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -291,14 +198,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingTop: 60,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.lg,
   },
   profileScroll: {
-    flex: 1,
+    flexGrow: 0,
   },
   profilePill: {
     paddingHorizontal: spacing.xl,
@@ -325,38 +230,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.md,
   },
   addProfileIcon: {
     color: colors.textSecondary,
     fontSize: typography.xl,
   },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  settingsIcon: {
-    fontSize: 18,
-  },
   content: {
     flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 180,
-  },
-  greetingSection: {
     alignItems: 'center',
-    marginTop: spacing.xxl,
-    marginBottom: spacing.xxxl,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
   },
   avatarContainer: {
-    position: 'relative',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
   avatar: {
     width: 80,
@@ -373,128 +259,20 @@ const styles = StyleSheet.create({
     fontSize: typography.xxxl,
     fontWeight: typography.bold,
   },
-  avatarBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.accentGreen,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.background,
-  },
-  avatarBadgeIcon: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: typography.bold,
-  },
   greetingText: {
     color: colors.textPrimary,
     fontSize: typography.xxl,
     fontWeight: typography.bold,
-    marginBottom: spacing.xs,
-  },
-  subGreetingText: {
-    color: colors.textSecondary,
-    fontSize: typography.base,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.xxl,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    color: colors.textPrimary,
-    fontSize: typography.xxl,
-    fontWeight: typography.bold,
-  },
-  statUnit: {
-    color: colors.textMuted,
-    fontSize: typography.xs,
-    marginTop: 2,
-  },
-  statLabel: {
-    color: colors.textMuted,
-    fontSize: typography.xs,
-    fontWeight: typography.medium,
-    marginTop: spacing.sm,
-    letterSpacing: 0.5,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: colors.cardBorder,
-    marginHorizontal: spacing.lg,
-  },
-  healthJourneyCard: {
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.xxl,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  healthJourneyContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.lg,
-  },
-  healthJourneyIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.primaryGlow,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.lg,
-  },
-  healthJourneyEmoji: {
-    fontSize: 22,
-  },
-  healthJourneyText: {
-    flex: 1,
-  },
-  healthJourneyTitle: {
-    color: colors.textPrimary,
-    fontSize: typography.lg,
-    fontWeight: typography.semibold,
-    marginBottom: spacing.xs,
-  },
-  healthJourneySubtitle: {
-    color: colors.textSecondary,
-    fontSize: typography.sm,
-    lineHeight: 20,
-  },
-  viewTimelineButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  viewTimelineText: {
-    color: colors.textPrimary,
-    fontSize: typography.base,
-    fontWeight: typography.semibold,
+    marginBottom: spacing.xxxl,
   },
   micSection: {
     alignItems: 'center',
-    paddingVertical: spacing.xxxl,
   },
   micGlow: {
     position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
     backgroundColor: colors.primary,
     ...shadows.glow,
   },
@@ -512,59 +290,35 @@ const styles = StyleSheet.create({
   },
   micTitle: {
     color: colors.textPrimary,
-    fontSize: typography.xl,
+    fontSize: typography.lg,
     fontWeight: typography.semibold,
     marginTop: spacing.xxl,
   },
   micSubtitle: {
     color: colors.textMuted,
-    fontSize: typography.base,
-    marginTop: spacing.sm,
+    fontSize: typography.sm,
+    marginTop: spacing.xs,
   },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    backgroundColor: colors.backgroundSecondary,
-    paddingVertical: spacing.lg,
-    paddingBottom: 34,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-  },
-  navItem: {
-    flex: 1,
+  bottomSection: {
+    paddingBottom: 50,
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  navIcon: {
-    fontSize: 24,
-    opacity: 0.5,
-  },
-  navIconActive: {
-    opacity: 1,
   },
   profileInsightsButton: {
-    position: 'absolute',
-    bottom: 100,
-    right: spacing.xl,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xxl,
     borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.primary,
     gap: spacing.sm,
+    ...shadows.button,
   },
   profileInsightsIcon: {
-    fontSize: 14,
+    fontSize: 16,
   },
   profileInsightsText: {
-    color: colors.primary,
-    fontSize: typography.sm,
+    color: colors.textPrimary,
+    fontSize: typography.md,
     fontWeight: typography.semibold,
   },
 });
