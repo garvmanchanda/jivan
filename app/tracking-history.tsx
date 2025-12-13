@@ -10,10 +10,11 @@ import {
 import { useRouter } from 'expo-router';
 import { getVitals, getActiveProfileId } from '../services/supabaseStorage';
 import { Vital } from '../types';
+import { colors, typography, spacing, borderRadius } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
-const CHART_WIDTH = width - 40;
-const BAR_HEIGHT = 150;
+const CHART_WIDTH = width - 80;
+const BAR_HEIGHT = 120;
 
 type TimeRange = 'daily' | 'weekly' | 'monthly';
 
@@ -23,11 +24,11 @@ export default function TrackingHistoryScreen() {
   const [timeRange, setTimeRange] = useState<TimeRange>('daily');
 
   const dailyMetrics = [
-    { type: 'sleep', label: 'Sleep', unit: 'hrs', color: '#a78bfa', max: 12 },
-    { type: 'water', label: 'Water', unit: 'glasses', color: '#60a5fa', max: 15 },
-    { type: 'steps', label: 'Steps', unit: 'steps', color: '#34d399', max: 15000 },
-    { type: 'alcohol', label: 'Alcohol', unit: 'drinks', color: '#fbbf24', max: 10 },
-    { type: 'cigarettes', label: 'Cigarettes', unit: 'count', color: '#f87171', max: 20 },
+    { type: 'sleep', label: 'Sleep', unit: 'hrs', color: colors.primaryLight, icon: '😴', max: 12 },
+    { type: 'water', label: 'Water', unit: 'glasses', color: colors.accentBlue, icon: '💧', max: 15 },
+    { type: 'steps', label: 'Steps', unit: 'steps', color: colors.accentGreen, icon: '👟', max: 15000 },
+    { type: 'alcohol', label: 'Alcohol', unit: 'drinks', color: colors.accentYellow, icon: '🍺', max: 10 },
+    { type: 'cigarettes', label: 'Cigarettes', unit: 'count', color: colors.accentRed, icon: '🚬', max: 20 },
   ];
 
   useEffect(() => {
@@ -39,17 +40,14 @@ export default function TrackingHistoryScreen() {
     if (!profileId) return;
 
     const profileVitals = await getVitals(profileId);
-    // Filter only daily tracking vitals
     const dailyVitals = profileVitals.filter(v => v.isDaily);
     setVitals(dailyVitals);
   };
 
-  // Get data for a specific metric based on time range
   const getMetricData = (type: string) => {
     const metricVitals = vitals.filter(v => v.type === type);
     
     if (timeRange === 'daily') {
-      // Last 7 days
       const last7Days = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
@@ -65,7 +63,6 @@ export default function TrackingHistoryScreen() {
       }
       return last7Days;
     } else if (timeRange === 'weekly') {
-      // Last 8 weeks
       const last8Weeks = [];
       for (let i = 7; i >= 0; i--) {
         const endDate = new Date();
@@ -90,7 +87,6 @@ export default function TrackingHistoryScreen() {
       }
       return last8Weeks;
     } else {
-      // Last 6 months
       const last6Months = [];
       for (let i = 5; i >= 0; i--) {
         const date = new Date();
@@ -119,18 +115,32 @@ export default function TrackingHistoryScreen() {
 
   const renderBarChart = (metric: typeof dailyMetrics[0]) => {
     const data = getMetricData(metric.type);
-    const maxValue = Math.max(...data.map(d => d.value), metric.max);
+    const maxValue = Math.max(...data.map(d => d.value), metric.max * 0.5);
+    const latestValue = data[data.length - 1]?.value || 0;
     
     return (
-      <View key={metric.type} style={styles.chartContainer}>
+      <View key={metric.type} style={styles.chartCard}>
         <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>{metric.label}</Text>
-          <Text style={styles.chartUnit}>{metric.unit}</Text>
+          <View style={styles.chartHeaderLeft}>
+            <Text style={styles.chartIcon}>{metric.icon}</Text>
+            <View>
+              <Text style={styles.chartTitle}>{metric.label}</Text>
+              <Text style={styles.chartValue}>
+                {latestValue > 0 ? `${latestValue.toLocaleString()} ${metric.unit}` : 'No data'}
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.chartBadge, { backgroundColor: `${metric.color}20` }]}>
+            <Text style={[styles.chartBadgeText, { color: metric.color }]}>
+              {timeRange === 'daily' ? '7D' : timeRange === 'weekly' ? '8W' : '6M'}
+            </Text>
+          </View>
         </View>
         
         <View style={styles.chart}>
           {data.map((item, index) => {
             const barHeight = maxValue > 0 ? (item.value / maxValue) * BAR_HEIGHT : 0;
+            const isLast = index === data.length - 1;
             return (
               <View key={index} style={styles.barContainer}>
                 <View style={styles.barWrapper}>
@@ -138,16 +148,15 @@ export default function TrackingHistoryScreen() {
                     style={[
                       styles.bar,
                       {
-                        height: barHeight,
-                        backgroundColor: metric.color,
+                        height: Math.max(barHeight, 4),
+                        backgroundColor: isLast ? metric.color : `${metric.color}60`,
                       },
                     ]}
                   />
                 </View>
-                <Text style={styles.barLabel}>{item.label}</Text>
-                {item.value > 0 && (
-                  <Text style={styles.barValue}>{item.value}</Text>
-                )}
+                <Text style={[styles.barLabel, isLast && styles.barLabelActive]}>
+                  {item.label}
+                </Text>
               </View>
             );
           })}
@@ -158,43 +167,52 @@ export default function TrackingHistoryScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>← Back</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tracking History</Text>
+        <View style={{ width: 44 }} />
       </View>
 
       {/* Time Range Selector */}
-      <View style={styles.timeRangeSelector}>
-        <TouchableOpacity
-          style={[styles.timeRangeButton, timeRange === 'daily' && styles.timeRangeButtonActive]}
-          onPress={() => setTimeRange('daily')}
-        >
-          <Text style={[styles.timeRangeText, timeRange === 'daily' && styles.timeRangeTextActive]}>
-            Daily
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.timeRangeButton, timeRange === 'weekly' && styles.timeRangeButtonActive]}
-          onPress={() => setTimeRange('weekly')}
-        >
-          <Text style={[styles.timeRangeText, timeRange === 'weekly' && styles.timeRangeTextActive]}>
-            Weekly
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.timeRangeButton, timeRange === 'monthly' && styles.timeRangeButtonActive]}
-          onPress={() => setTimeRange('monthly')}
-        >
-          <Text style={[styles.timeRangeText, timeRange === 'monthly' && styles.timeRangeTextActive]}>
-            Monthly
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.timeRangeContainer}>
+        <View style={styles.timeRangeSelector}>
+          <TouchableOpacity
+            style={[styles.timeRangeButton, timeRange === 'daily' && styles.timeRangeButtonActive]}
+            onPress={() => setTimeRange('daily')}
+          >
+            <Text style={[styles.timeRangeText, timeRange === 'daily' && styles.timeRangeTextActive]}>
+              Daily
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.timeRangeButton, timeRange === 'weekly' && styles.timeRangeButtonActive]}
+            onPress={() => setTimeRange('weekly')}
+          >
+            <Text style={[styles.timeRangeText, timeRange === 'weekly' && styles.timeRangeTextActive]}>
+              Weekly
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.timeRangeButton, timeRange === 'monthly' && styles.timeRangeButtonActive]}
+            onPress={() => setTimeRange('monthly')}
+          >
+            <Text style={[styles.timeRangeText, timeRange === 'monthly' && styles.timeRangeTextActive]}>
+              Monthly
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {dailyMetrics.map(metric => renderBarChart(metric))}
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -203,81 +221,113 @@ export default function TrackingHistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 60,
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
-  backText: {
-    color: '#7c3aed',
-    fontSize: 16,
-    marginBottom: 12,
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backIcon: {
+    color: colors.textPrimary,
+    fontSize: 24,
   },
   headerTitle: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: 'bold',
+    color: colors.textPrimary,
+    fontSize: typography.lg,
+    fontWeight: typography.semibold,
+  },
+  timeRangeContainer: {
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.xl,
   },
   timeRangeSelector: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.full,
+    padding: spacing.xs,
   },
   timeRangeButton: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#1a1a1a',
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.full,
     alignItems: 'center',
   },
   timeRangeButtonActive: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: colors.primary,
   },
   timeRangeText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '600',
+    color: colors.textMuted,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
   },
   timeRangeTextActive: {
-    color: '#fff',
+    color: colors.textPrimary,
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.xl,
   },
-  chartContainer: {
-    marginBottom: 32,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 16,
+  chartCard: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.xl,
+  },
+  chartHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chartIcon: {
+    fontSize: 28,
+    marginRight: spacing.md,
   },
   chartTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: colors.textPrimary,
+    fontSize: typography.md,
+    fontWeight: typography.semibold,
+    marginBottom: 2,
   },
-  chartUnit: {
-    color: '#666',
-    fontSize: 14,
+  chartValue: {
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+  },
+  chartBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  chartBadgeText: {
+    fontSize: typography.xs,
+    fontWeight: typography.bold,
   },
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    height: BAR_HEIGHT + 50,
+    height: BAR_HEIGHT + 30,
+    paddingTop: spacing.sm,
   },
   barContainer: {
     flex: 1,
@@ -289,22 +339,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     height: BAR_HEIGHT,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   bar: {
-    width: '70%',
-    borderRadius: 4,
-    minHeight: 2,
+    width: '60%',
+    borderRadius: borderRadius.sm,
+    minHeight: 4,
   },
   barLabel: {
-    color: '#666',
-    fontSize: 11,
-    marginTop: 4,
+    color: colors.textMuted,
+    fontSize: typography.xs,
   },
-  barValue: {
-    color: '#ccc',
-    fontSize: 10,
-    marginTop: 2,
+  barLabelActive: {
+    color: colors.textPrimary,
+    fontWeight: typography.semibold,
   },
 });
-

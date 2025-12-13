@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { transcribeAudio, getAIResponseV2 } from '../services/ai';
 import { getActiveProfileId, getProfiles, saveConversation } from '../services/supabaseStorage';
 import { Conversation } from '../types';
+import { AlertModal } from '../components/CustomModal';
+import { colors, typography, spacing, borderRadius, shadows } from '../constants/theme';
 
-// Silence detection config
-const SILENCE_THRESHOLD = -45; // dB level considered silence
-const SILENCE_DURATION_MS = 2000; // 2 seconds of silence to auto-stop
-const MIN_RECORDING_MS = 1000; // Minimum recording duration before auto-stop
+const SILENCE_THRESHOLD = -45;
+const SILENCE_DURATION_MS = 2000;
+const MIN_RECORDING_MS = 1000;
 
 export default function RecordScreen() {
   const router = useRouter();
@@ -20,8 +21,14 @@ export default function RecordScreen() {
   const [transcript, setTranscript] = useState('');
   const [streamingContent, setStreamingContent] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
-  const pulseAnim = useState(new Animated.Value(1))[0];
-  const dotAnim = useRef(new Animated.Value(0)).current;
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({ title: '', message: '', buttons: [] as any[] });
+  
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0.3)).current;
+  const waveAnim1 = useRef(new Animated.Value(1)).current;
+  const waveAnim2 = useRef(new Animated.Value(1)).current;
+  const waveAnim3 = useRef(new Animated.Value(1)).current;
   const silenceStartRef = useRef<number | null>(null);
   const recordingStartRef = useRef<number | null>(null);
   const meteringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -40,43 +47,60 @@ export default function RecordScreen() {
 
   useEffect(() => {
     if (isRecording) {
+      // Main pulse animation
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseAnim, { toValue: 1.1, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        ])
+      ).start();
+
+      // Glow animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0.3, duration: 1000, useNativeDriver: true }),
+        ])
+      ).start();
+
+      // Wave animations
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(waveAnim1, { toValue: 1.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(waveAnim1, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(200),
+          Animated.timing(waveAnim2, { toValue: 1.4, duration: 700, useNativeDriver: true }),
+          Animated.timing(waveAnim2, { toValue: 1, duration: 700, useNativeDriver: true }),
+        ])
+      ).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(400),
+          Animated.timing(waveAnim3, { toValue: 1.5, duration: 800, useNativeDriver: true }),
+          Animated.timing(waveAnim3, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
     }
   }, [isRecording]);
 
-  // Animated dots for "analyzing" stage
-  useEffect(() => {
-    if (processingStage === 'analyzing') {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(dotAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-          Animated.timing(dotAnim, { toValue: 2, duration: 400, useNativeDriver: true }),
-          Animated.timing(dotAnim, { toValue: 3, duration: 400, useNativeDriver: true }),
-          Animated.timing(dotAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
-        ])
-      ).start();
-    }
-  }, [processingStage]);
+  const showAlert = (title: string, message: string, buttons: any[]) => {
+    setAlertConfig({ title, message, buttons });
+    setAlertVisible(true);
+  };
 
   const startRecording = async () => {
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
-        alert('Please grant microphone permission');
-        router.back();
+        showAlert('Permission Required', 'Please grant microphone permission to record audio.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
         return;
       }
 
@@ -85,7 +109,6 @@ export default function RecordScreen() {
         playsInSilentModeIOS: true,
       });
 
-      // Use recording options with metering enabled
       const recordingOptions = {
         ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
         isMeteringEnabled: true,
@@ -97,7 +120,6 @@ export default function RecordScreen() {
       recordingStartRef.current = Date.now();
       silenceStartRef.current = null;
 
-      // Start metering for silence detection
       meteringIntervalRef.current = setInterval(async () => {
         try {
           const status = await newRecording.getStatusAsync();
@@ -108,19 +130,15 @@ export default function RecordScreen() {
             const now = Date.now();
             const recordingDuration = now - (recordingStartRef.current || now);
 
-            // Only check for silence after minimum recording time
             if (recordingDuration > MIN_RECORDING_MS) {
               if (level < SILENCE_THRESHOLD) {
-                // Start silence timer if not already started
                 if (silenceStartRef.current === null) {
                   silenceStartRef.current = now;
                 } else if (now - silenceStartRef.current > SILENCE_DURATION_MS) {
-                  // Auto-stop after silence duration
                   console.log('Auto-stopping due to silence detection');
                   stopRecordingRef.current?.();
                 }
               } else {
-                // Reset silence timer on sound
                 silenceStartRef.current = null;
               }
             }
@@ -135,13 +153,11 @@ export default function RecordScreen() {
     }
   };
 
-  // Use ref for stopRecording to avoid stale closure in metering interval
   const stopRecordingRef = useRef<(() => void) | null>(null);
 
   const stopRecording = async () => {
     if (!recording) return;
 
-    // Clear metering interval
     if (meteringIntervalRef.current) {
       clearInterval(meteringIntervalRef.current);
       meteringIntervalRef.current = null;
@@ -156,45 +172,31 @@ export default function RecordScreen() {
       const uri = recording.getURI();
 
       if (!uri) {
-        Alert.alert(
-          'Recording Failed',
-          'Unable to save your recording. Please try again.',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
+        showAlert('Recording Failed', 'Unable to save your recording. Please try again.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
         return;
       }
 
-      console.log('Recording saved, starting transcription...');
-
-      // Transcribe audio with retry logic
       let transcribedText: string;
       try {
         transcribedText = await transcribeAudio(uri);
         setTranscript(transcribedText);
-        console.log('Transcription complete:', transcribedText);
       } catch (transcribeError: any) {
-        console.error('Transcription error:', transcribeError);
-        Alert.alert(
-          'Transcription Failed',
-          transcribeError.message || 'Unable to transcribe your voice. Please try again.',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => router.back() },
-            { text: 'Retry', onPress: stopRecording }
-          ]
-        );
+        showAlert('Transcription Failed', transcribeError.message || 'Unable to transcribe your voice.', [
+          { text: 'Cancel', onPress: () => router.back(), style: 'cancel' },
+          { text: 'Retry', onPress: startRecording }
+        ]);
         setIsProcessing(false);
         return;
       }
 
-      // Get profile context
       const activeProfileId = await getActiveProfileId();
       const profiles = await getProfiles();
       const activeProfile = profiles.find(p => p.id === activeProfileId);
 
-      console.log('Getting AI analysis...');
       setProcessingStage('analyzing');
 
-      // Get AI response with V2 (memory-aware)
       const aiResponse = await getAIResponseV2(
         transcribedText,
         activeProfileId!,
@@ -204,10 +206,8 @@ export default function RecordScreen() {
         }
       );
 
-      console.log('AI analysis complete');
       setProcessingStage('done');
 
-      // Save conversation (V2 format: reflection + interpretation = summary)
       const conversation: Conversation = {
         id: Date.now().toString(),
         profileId: activeProfileId!,
@@ -219,7 +219,6 @@ export default function RecordScreen() {
       };
       await saveConversation(conversation);
 
-      // Navigate to response screen with data directly
       router.replace({
         pathname: '/response',
         params: {
@@ -233,27 +232,29 @@ export default function RecordScreen() {
 
     } catch (error: any) {
       console.error('Unexpected error:', error);
-      Alert.alert(
-        'Processing Error',
-        'An unexpected error occurred. Your recording was saved, but we couldn\'t process it. Please try again later.',
-        [
-          { text: 'OK', onPress: () => router.back() }
-        ]
-      );
+      showAlert('Processing Error', 'An unexpected error occurred. Please try again later.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
       setIsProcessing(false);
     }
   };
 
-  // Assign stopRecording to ref for use in metering interval
   useEffect(() => {
     stopRecordingRef.current = stopRecording;
   });
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {isProcessing ? 'Processing...' : 'Recording'}
+        </Text>
+        <View style={{ width: 44 }} />
+      </View>
 
       <View style={styles.centerSection}>
         {isProcessing ? (
@@ -262,29 +263,40 @@ export default function RecordScreen() {
             contentContainerStyle={styles.processingContent}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.processingIcon}>
-              <Text style={styles.processingEmoji}>
-                {processingStage === 'transcribing' ? '🎧' : processingStage === 'analyzing' ? '🧠' : '✅'}
-              </Text>
+            <View style={styles.processingIconContainer}>
+              <View style={styles.processingIcon}>
+                <Text style={styles.processingEmoji}>
+                  {processingStage === 'transcribing' ? '🎧' : processingStage === 'analyzing' ? '🧠' : '✅'}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.statusText}>
+
+            <Text style={styles.processingTitle}>
               {processingStage === 'transcribing'
-                ? 'Transcribing...'
+                ? 'Transcribing your voice...'
                 : processingStage === 'analyzing'
-                ? 'Analyzing...'
-                : 'Done!'}
+                ? 'Analyzing your query...'
+                : 'All done!'}
+            </Text>
+
+            <Text style={styles.processingSubtitle}>
+              {processingStage === 'transcribing'
+                ? 'Converting speech to text'
+                : processingStage === 'analyzing'
+                ? 'Getting personalized insights'
+                : 'Preparing your response'}
             </Text>
 
             {transcript && (
               <View style={styles.transcriptBox}>
-                <Text style={styles.transcriptLabel}>You said:</Text>
+                <Text style={styles.transcriptLabel}>YOU SAID</Text>
                 <Text style={styles.transcript}>"{transcript}"</Text>
               </View>
             )}
 
             {streamingContent && processingStage === 'analyzing' && (
               <View style={styles.streamingBox}>
-                <Text style={styles.streamingLabel}>Jeevan is thinking...</Text>
+                <Text style={styles.streamingLabel}>JEEVAN IS THINKING</Text>
                 <Text style={styles.streamingText} numberOfLines={8}>
                   {streamingContent.substring(0, 300)}
                   {streamingContent.length > 300 ? '...' : ''}
@@ -293,29 +305,49 @@ export default function RecordScreen() {
             )}
           </ScrollView>
         ) : (
-          <>
-            <Animated.View
-              style={[
-                styles.recordingCircle,
-                { transform: [{ scale: pulseAnim }] },
-              ]}
-            >
+          <View style={styles.recordingView}>
+            {/* Animated Waves */}
+            <Animated.View style={[styles.wave, styles.wave3, { transform: [{ scale: waveAnim3 }], opacity: waveAnim3.interpolate({ inputRange: [1, 1.5], outputRange: [0.1, 0] }) }]} />
+            <Animated.View style={[styles.wave, styles.wave2, { transform: [{ scale: waveAnim2 }], opacity: waveAnim2.interpolate({ inputRange: [1, 1.4], outputRange: [0.15, 0] }) }]} />
+            <Animated.View style={[styles.wave, styles.wave1, { transform: [{ scale: waveAnim1 }], opacity: waveAnim1.interpolate({ inputRange: [1, 1.3], outputRange: [0.2, 0] }) }]} />
+            
+            {/* Glow Effect */}
+            <Animated.View style={[styles.glow, { opacity: glowAnim }]} />
+            
+            {/* Recording Circle */}
+            <Animated.View style={[styles.recordingCircle, { transform: [{ scale: pulseAnim }] }]}>
               <View style={styles.innerCircle}>
                 <Text style={styles.micIcon}>🎤</Text>
               </View>
             </Animated.View>
-            <Text style={styles.statusText}>Listening...</Text>
-          </>
+
+            <Text style={styles.listeningText}>Listening...</Text>
+            <Text style={styles.listeningHint}>Speak clearly, I'll stop when you're done</Text>
+          </View>
         )}
       </View>
 
       {!isProcessing && (
         <View style={styles.bottomSection}>
-          <TouchableOpacity style={styles.stopButton} onPress={stopRecording}>
+          <TouchableOpacity 
+            style={styles.stopButton} 
+            onPress={stopRecording}
+            activeOpacity={0.8}
+          >
             <View style={styles.stopIcon} />
           </TouchableOpacity>
+          <Text style={styles.stopHint}>Tap to stop</Text>
         </View>
       )}
+
+      <AlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons.length > 0 ? alertConfig.buttons : [
+          { text: 'OK', onPress: () => setAlertVisible(false) }
+        ]}
+      />
     </View>
   );
 }
@@ -323,21 +355,99 @@ export default function RecordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   backButton: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  backText: {
-    color: '#7c3aed',
-    fontSize: 16,
+  backIcon: {
+    color: colors.textPrimary,
+    fontSize: 24,
+  },
+  headerTitle: {
+    color: colors.textPrimary,
+    fontSize: typography.lg,
+    fontWeight: typography.semibold,
   },
   centerSection: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
+  },
+  recordingView: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wave: {
+    position: 'absolute',
+    borderRadius: 9999,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  wave1: {
+    width: 220,
+    height: 220,
+  },
+  wave2: {
+    width: 280,
+    height: 280,
+  },
+  wave3: {
+    width: 340,
+    height: 340,
+  },
+  glow: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: colors.primary,
+    ...shadows.glow,
+  },
+  recordingCircle: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.glow,
+  },
+  innerCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: colors.primaryDark,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  micIcon: {
+    fontSize: 50,
+  },
+  listeningText: {
+    color: colors.primary,
+    fontSize: typography.xxl,
+    fontWeight: typography.semibold,
+    marginTop: spacing.xxxl,
+  },
+  listeningHint: {
+    color: colors.textMuted,
+    fontSize: typography.base,
+    marginTop: spacing.sm,
   },
   processingContainer: {
     flex: 1,
@@ -345,102 +455,102 @@ const styles = StyleSheet.create({
   },
   processingContent: {
     alignItems: 'center',
-    paddingTop: 40,
+    paddingTop: 60,
     paddingBottom: 40,
   },
-  recordingCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#7c3aed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    opacity: 0.8,
-  },
-  innerCircle: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: '#5b21b6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  micIcon: {
-    fontSize: 60,
+  processingIconContainer: {
+    marginBottom: spacing.xxl,
   },
   processingIcon: {
     width: 100,
     height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   processingEmoji: {
-    fontSize: 60,
+    fontSize: 44,
   },
-  statusText: {
-    marginTop: 16,
-    fontSize: 20,
-    color: '#7c3aed',
-    fontWeight: '600',
+  processingTitle: {
+    color: colors.textPrimary,
+    fontSize: typography.xl,
+    fontWeight: typography.semibold,
+    marginBottom: spacing.sm,
+  },
+  processingSubtitle: {
+    color: colors.textMuted,
+    fontSize: typography.base,
+    marginBottom: spacing.xxxl,
   },
   transcriptBox: {
-    marginTop: 24,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
     width: '100%',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    marginBottom: spacing.xl,
   },
   transcriptLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 8,
-    textTransform: 'uppercase',
+    fontSize: typography.xs,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
     letterSpacing: 1,
+    fontWeight: typography.semibold,
   },
   transcript: {
-    fontSize: 16,
-    color: '#ccc',
+    fontSize: typography.md,
+    color: colors.textPrimary,
     fontStyle: 'italic',
-    lineHeight: 22,
+    lineHeight: 24,
   },
   streamingBox: {
-    marginTop: 20,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
     width: '100%',
+    borderWidth: 1,
+    borderColor: colors.primary,
     borderLeftWidth: 3,
-    borderLeftColor: '#7c3aed',
   },
   streamingLabel: {
-    fontSize: 12,
-    color: '#7c3aed',
-    marginBottom: 8,
-    textTransform: 'uppercase',
+    fontSize: typography.xs,
+    color: colors.primary,
+    marginBottom: spacing.sm,
     letterSpacing: 1,
+    fontWeight: typography.semibold,
   },
   streamingText: {
-    fontSize: 14,
-    color: '#888',
-    lineHeight: 20,
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
   bottomSection: {
     paddingBottom: 60,
     alignItems: 'center',
   },
   stopButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1a1a1a',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.cardBorder,
   },
   stopIcon: {
-    width: 30,
-    height: 30,
-    backgroundColor: '#fff',
+    width: 24,
+    height: 24,
+    backgroundColor: colors.accentRed,
     borderRadius: 4,
   },
+  stopHint: {
+    color: colors.textMuted,
+    fontSize: typography.sm,
+    marginTop: spacing.md,
+  },
 });
-

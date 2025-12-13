@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getActiveIssues, getInsights, getEventMemory } from '../services/ai';
 import { ActiveIssue, Insight, EventMemory } from '../types';
 import { createClient } from '@supabase/supabase-js';
+import { CustomModal, AlertModal } from '../components/CustomModal';
+import { colors, typography, spacing, borderRadius, shadows } from '../constants/theme';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://gzmfehoyqyjydegwgbjz.supabase.co';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -21,6 +23,8 @@ export default function HealthJourney() {
   const [selectedTab, setSelectedTab] = useState<'issues' | 'insights' | 'timeline'>('issues');
   const [selectedIssue, setSelectedIssue] = useState<ActiveIssue | null>(null);
   const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
 
   useEffect(() => {
     loadHealthJourneyData();
@@ -42,7 +46,8 @@ export default function HealthJourney() {
       setRecentEvents(eventsData);
     } catch (error) {
       console.error('Error loading health journey:', error);
-      Alert.alert('Error', 'Failed to load health journey data');
+      setAlertConfig({ title: 'Error', message: 'Failed to load health journey data' });
+      setAlertVisible(true);
     } finally {
       setLoading(false);
     }
@@ -50,20 +55,20 @@ export default function HealthJourney() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return '#FF6B6B';
-      case 'improving': return '#4ECDC4';
-      case 'monitoring': return '#FFE66D';
-      case 'resolved': return '#95E1D3';
-      default: return '#666';
+      case 'active': return colors.statusActive;
+      case 'improving': return colors.statusImproving;
+      case 'monitoring': return colors.statusMonitoring;
+      case 'resolved': return colors.statusResolved;
+      default: return colors.textMuted;
     }
   };
 
-  const getSeverityIcon = (severity: string) => {
+  const getSeverityLabel = (severity: string) => {
     switch (severity) {
-      case 'severe': return '🔴';
-      case 'moderate': return '🟡';
-      case 'mild': return '🟢';
-      default: return '⚪️';
+      case 'severe': return { label: 'SEVERE', color: colors.severitySevere };
+      case 'moderate': return { label: 'MODERATE', color: colors.severityModerate };
+      case 'mild': return { label: 'MILD', color: colors.severityMild };
+      default: return { label: 'UNKNOWN', color: colors.textMuted };
     }
   };
 
@@ -102,12 +107,14 @@ export default function HealthJourney() {
 
       setStatusModalVisible(false);
       setSelectedIssue(null);
-      await loadHealthJourneyData(); // Reload data
+      await loadHealthJourneyData();
       
-      Alert.alert('Success', `Issue marked as ${newStatus}`);
+      setAlertConfig({ title: 'Success', message: `Issue marked as ${newStatus}` });
+      setAlertVisible(true);
     } catch (error) {
       console.error('Error updating issue:', error);
-      Alert.alert('Error', 'Failed to update issue status');
+      setAlertConfig({ title: 'Error', message: 'Failed to update issue status' });
+      setAlertVisible(true);
     }
   };
 
@@ -117,101 +124,103 @@ export default function HealthJourney() {
   };
 
   const renderIssues = () => (
-    <View style={styles.section}>
+    <View style={styles.tabContent}>
       {activeIssues.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>✨</Text>
-          <Text style={styles.emptyText}>No active health issues</Text>
-          <Text style={styles.emptySubtext}>You're doing great!</Text>
+          <Text style={styles.emptyTitle}>No active health issues</Text>
+          <Text style={styles.emptySubtitle}>You're doing great! Keep it up.</Text>
         </View>
       ) : (
-        activeIssues.map((issue) => (
-          <View key={issue.id} style={styles.issueCard}>
-            <View style={styles.issueHeader}>
-              <View style={styles.issueTitle}>
-                <Text style={styles.severityIcon}>{getSeverityIcon(issue.severity)}</Text>
-                <Text style={styles.issueLabel}>{issue.label}</Text>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(issue.status) }]}>
-                <Text style={styles.statusText}>{issue.status}</Text>
-              </View>
-            </View>
-
-            <View style={styles.issueDetails}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>First reported:</Text>
-                <Text style={styles.detailValue}>{formatDate(issue.firstReportedAt)}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Last mentioned:</Text>
-                <Text style={styles.detailValue}>{formatDate(issue.lastMentionedAt)}</Text>
-              </View>
-              {issue.notes && (
-                <View style={styles.notesContainer}>
-                  <Text style={styles.notesLabel}>Notes:</Text>
-                  <Text style={styles.notesText}>{issue.notes}</Text>
-                </View>
-              )}
-              
+        <>
+          <Text style={styles.sectionLabel}>ACTIVE ISSUES</Text>
+          {activeIssues.map((issue) => {
+            const severity = getSeverityLabel(issue.severity);
+            return (
               <TouchableOpacity 
-                style={styles.updateStatusButton}
+                key={issue.id} 
+                style={styles.issueCard}
                 onPress={() => openStatusModal(issue)}
+                activeOpacity={0.85}
               >
-                <Text style={styles.updateStatusText}>Update Status</Text>
+                <View style={styles.issueHeader}>
+                  <View style={styles.issueIconContainer}>
+                    <Text style={styles.issueIcon}>⚡</Text>
+                  </View>
+                  <View style={styles.issueTitleContainer}>
+                    <Text style={styles.issueTitle}>{issue.label}</Text>
+                    <Text style={styles.issueDate}>Last log: {formatDate(issue.lastMentionedAt)}</Text>
+                  </View>
+                  <View style={[styles.severityBadge, { backgroundColor: `${severity.color}20` }]}>
+                    <Text style={[styles.severityText, { color: severity.color }]}>{severity.label}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity style={styles.issueArrow}>
+                  <Text style={styles.issueArrowText}>›</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
-            </View>
-          </View>
-        ))
+            );
+          })}
+        </>
       )}
     </View>
   );
 
   const renderInsights = () => (
-    <View style={styles.section}>
+    <View style={styles.tabContent}>
       {insights.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>💡</Text>
-          <Text style={styles.emptyText}>No insights yet</Text>
-          <Text style={styles.emptySubtext}>Keep tracking your health to discover patterns</Text>
+          <Text style={styles.emptyTitle}>No insights yet</Text>
+          <Text style={styles.emptySubtitle}>Keep tracking your health to discover patterns</Text>
         </View>
       ) : (
-        insights.map((insight) => (
-          <View key={insight.id} style={styles.insightCard}>
-            <View style={styles.insightHeader}>
-              <Text style={styles.insightIcon}>💡</Text>
-              <View style={styles.confidenceBadge}>
-                <Text style={styles.confidenceText}>
-                  {Math.round(insight.confidence * 100)}% confident
-                </Text>
+        <>
+          <Text style={styles.sectionLabel}>DAILY INSIGHTS</Text>
+          {insights.map((insight) => (
+            <View key={insight.id} style={styles.insightCard}>
+              <View style={styles.insightIconContainer}>
+                <Text style={styles.insightIcon}>💜</Text>
+              </View>
+              <View style={styles.insightContent}>
+                <Text style={styles.insightTitle}>Sleep Correlation Found</Text>
+                <Text style={styles.insightText}>{insight.insight}</Text>
+                <TouchableOpacity>
+                  <Text style={styles.viewAnalysisLink}>View Analysis →</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            <Text style={styles.insightText}>{insight.insight}</Text>
-            <Text style={styles.insightDate}>Discovered {formatDate(insight.createdAt)}</Text>
-          </View>
-        ))
+          ))}
+        </>
       )}
     </View>
   );
 
   const renderTimeline = () => (
-    <View style={styles.section}>
+    <View style={styles.tabContent}>
       {recentEvents.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>📅</Text>
-          <Text style={styles.emptyText}>No events yet</Text>
-          <Text style={styles.emptySubtext}>Your health timeline will appear here</Text>
+          <Text style={styles.emptyTitle}>No events yet</Text>
+          <Text style={styles.emptySubtitle}>Your health timeline will appear here</Text>
         </View>
       ) : (
-        recentEvents.map((event) => (
-          <View key={event.id} style={styles.timelineCard}>
-            <View style={styles.timelineDot} />
-            <View style={styles.timelineContent}>
-              <Text style={styles.timelineType}>{event.eventType}</Text>
-              <Text style={styles.timelineDescription}>{event.description}</Text>
-              <Text style={styles.timelineDate}>{formatDate(event.timestamp)}</Text>
+        <>
+          <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
+          {recentEvents.map((event, index) => (
+            <View key={event.id} style={styles.timelineItem}>
+              <View style={styles.timelineLine}>
+                <View style={styles.timelineDot} />
+                {index < recentEvents.length - 1 && <View style={styles.timelineConnector} />}
+              </View>
+              <View style={styles.timelineContent}>
+                <Text style={styles.timelineType}>{event.eventType}</Text>
+                <Text style={styles.timelineDescription}>{event.description}</Text>
+                <Text style={styles.timelineDate}>{formatDate(event.timestamp)}</Text>
+              </View>
             </View>
-          </View>
-        ))
+          ))}
+        </>
       )}
     </View>
   );
@@ -220,14 +229,14 @@ export default function HealthJourney() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backButton}>←</Text>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Health Journey</Text>
-          <View style={{ width: 40 }} />
+          <Text style={styles.headerTitle}>Health Journey</Text>
+          <View style={{ width: 44 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4A90E2" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading your health journey...</Text>
         </View>
       </View>
@@ -238,45 +247,71 @@ export default function HealthJourney() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backButton}>←</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Health Journey</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerCenter}>
+          <View style={styles.headerIconContainer}>
+            <Text style={styles.headerIcon}>👤</Text>
+          </View>
+          <Text style={styles.headerTitle}>Health Journey</Text>
+        </View>
+        <TouchableOpacity style={styles.moreButton}>
+          <Text style={styles.moreIcon}>⋯</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Profile Name */}
+      {/* Profile Banner */}
       {profileName && (
         <View style={styles.profileBanner}>
-          <Text style={styles.profileName}>{profileName}'s Journey</Text>
+          <Text style={styles.profileBannerText}>Good Morning, {profileName}</Text>
+          <Text style={styles.profileBannerSubtext}>Here is your daily health summary.</Text>
         </View>
       )}
+
+      {/* Stability Score (Optional) */}
+      <View style={styles.scoreCard}>
+        <View>
+          <Text style={styles.scoreLabel}>STABILITY SCORE</Text>
+          <View style={styles.scoreRow}>
+            <Text style={styles.scoreValue}>85</Text>
+            <Text style={styles.scorePercent}>%</Text>
+            <View style={styles.scoreTrend}>
+              <Text style={styles.scoreTrendText}>+2%</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.scoreProgress}>
+          <View style={[styles.scoreProgressFill, { width: '85%' }]} />
+        </View>
+        <Text style={styles.scoreMessage}>You're doing well today. Keep maintaining your routine.</Text>
+      </View>
 
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'issues' && styles.activeTab]}
+          style={[styles.tab, selectedTab === 'issues' && styles.tabActive]}
           onPress={() => setSelectedTab('issues')}
         >
-          <Text style={[styles.tabText, selectedTab === 'issues' && styles.activeTabText]}>
-            Issues ({activeIssues.filter(i => i.status !== 'resolved').length})
+          <Text style={[styles.tabText, selectedTab === 'issues' && styles.tabTextActive]}>
+            Issues
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'insights' && styles.activeTab]}
+          style={[styles.tab, selectedTab === 'insights' && styles.tabActive]}
           onPress={() => setSelectedTab('insights')}
         >
-          <Text style={[styles.tabText, selectedTab === 'insights' && styles.activeTabText]}>
-            Insights ({insights.length})
+          <Text style={[styles.tabText, selectedTab === 'insights' && styles.tabTextActive]}>
+            Insights
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'timeline' && styles.activeTab]}
+          style={[styles.tab, selectedTab === 'timeline' && styles.tabActive]}
           onPress={() => setSelectedTab('timeline')}
         >
-          <Text style={[styles.tabText, selectedTab === 'timeline' && styles.activeTabText]}>
+          <Text style={[styles.tabText, selectedTab === 'timeline' && styles.tabTextActive]}>
             Timeline
           </Text>
         </TouchableOpacity>
@@ -287,77 +322,47 @@ export default function HealthJourney() {
         {selectedTab === 'issues' && renderIssues()}
         {selectedTab === 'insights' && renderInsights()}
         {selectedTab === 'timeline' && renderTimeline()}
-
         <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Status Update Modal */}
-      <Modal
+      <CustomModal
         visible={statusModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setStatusModalVisible(false)}
+        onClose={() => setStatusModalVisible(false)}
+        title="Update Status"
+        subtitle={selectedIssue?.label}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Update Issue Status</Text>
-            <Text style={styles.modalSubtitle}>
-              {selectedIssue?.label}
-            </Text>
-
+        <View style={styles.statusOptions}>
+          {['active', 'improving', 'monitoring', 'resolved'].map((status) => (
             <TouchableOpacity
-              style={[styles.statusOption, selectedIssue?.status === 'active' && styles.statusOptionActive]}
-              onPress={() => handleUpdateIssueStatus('active')}
+              key={status}
+              style={[
+                styles.statusOption,
+                selectedIssue?.status === status && styles.statusOptionActive,
+              ]}
+              onPress={() => handleUpdateIssueStatus(status)}
             >
-              <Text style={styles.statusOptionIcon}>🔴</Text>
-              <View style={styles.statusOptionText}>
-                <Text style={styles.statusOptionTitle}>Active</Text>
-                <Text style={styles.statusOptionDesc}>Issue is ongoing</Text>
-              </View>
+              <View style={[styles.statusDot, { backgroundColor: getStatusColor(status) }]} />
+              <Text style={styles.statusOptionText}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.statusOption, selectedIssue?.status === 'improving' && styles.statusOptionActive]}
-              onPress={() => handleUpdateIssueStatus('improving')}
-            >
-              <Text style={styles.statusOptionIcon}>🟢</Text>
-              <View style={styles.statusOptionText}>
-                <Text style={styles.statusOptionTitle}>Improving</Text>
-                <Text style={styles.statusOptionDesc}>Getting better</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.statusOption, selectedIssue?.status === 'monitoring' && styles.statusOptionActive]}
-              onPress={() => handleUpdateIssueStatus('monitoring')}
-            >
-              <Text style={styles.statusOptionIcon}>🟡</Text>
-              <View style={styles.statusOptionText}>
-                <Text style={styles.statusOptionTitle}>Monitoring</Text>
-                <Text style={styles.statusOptionDesc}>Watching closely</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.statusOption, selectedIssue?.status === 'resolved' && styles.statusOptionActive]}
-              onPress={() => handleUpdateIssueStatus('resolved')}
-            >
-              <Text style={styles.statusOptionIcon}>✅</Text>
-              <View style={styles.statusOptionText}>
-                <Text style={styles.statusOptionTitle}>Resolved</Text>
-                <Text style={styles.statusOptionDesc}>Issue is resolved</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={() => setStatusModalVisible(false)}
-            >
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+          ))}
         </View>
-      </Modal>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => setStatusModalVisible(false)}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </CustomModal>
+
+      <AlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={[{ text: 'OK', onPress: () => setAlertVisible(false) }]}
+      />
     </View>
   );
 }
@@ -365,334 +370,384 @@ export default function HealthJourney() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 20,
-    backgroundColor: '#000',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   backButton: {
-    fontSize: 32,
-    color: '#7c3aed',
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  title: {
+  backIcon: {
+    color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
+  },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+  headerIcon: {
+    fontSize: 14,
+  },
+  headerTitle: {
+    color: colors.textPrimary,
+    fontSize: typography.lg,
+    fontWeight: typography.semibold,
+  },
+  moreButton: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreIcon: {
+    color: colors.textPrimary,
+    fontSize: 20,
   },
   profileBanner: {
-    backgroundColor: '#1a1a1a',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
   },
-  profileName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#7c3aed',
-    textAlign: 'center',
+  profileBannerText: {
+    color: colors.textPrimary,
+    fontSize: typography.xxl,
+    fontWeight: typography.bold,
+    marginBottom: spacing.xs,
+  },
+  profileBannerSubtext: {
+    color: colors.textSecondary,
+    fontSize: typography.base,
+  },
+  scoreCard: {
+    marginHorizontal: spacing.xl,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  scoreLabel: {
+    color: colors.textMuted,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  scoreValue: {
+    color: colors.textPrimary,
+    fontSize: 48,
+    fontWeight: typography.bold,
+  },
+  scorePercent: {
+    color: colors.textPrimary,
+    fontSize: typography.xxl,
+    fontWeight: typography.medium,
+  },
+  scoreTrend: {
+    backgroundColor: colors.accentGreen + '20',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    marginLeft: spacing.md,
+  },
+  scoreTrendText: {
+    color: colors.accentGreen,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+  },
+  scoreProgress: {
+    height: 6,
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 3,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  scoreProgressFill: {
+    height: '100%',
+    backgroundColor: colors.accentGreen,
+    borderRadius: 3,
+  },
+  scoreMessage: {
+    color: colors.textSecondary,
+    fontSize: typography.sm,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    marginTop: spacing.lg,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#000',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
   tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.backgroundTertiary,
   },
-  activeTab: {
-    borderBottomColor: '#7c3aed',
+  tabActive: {
+    backgroundColor: colors.primary,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
   },
-  activeTabText: {
-    color: '#7c3aed',
+  tabTextActive: {
+    color: colors.textPrimary,
   },
   content: {
     flex: 1,
+    paddingHorizontal: spacing.xl,
   },
-  section: {
-    padding: 20,
+  tabContent: {
+    flex: 1,
+  },
+  sectionLabel: {
+    color: colors.textMuted,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    letterSpacing: 1,
+    marginBottom: spacing.md,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
   },
   emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+    fontSize: 48,
+    marginBottom: spacing.lg,
   },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 8,
+  emptyTitle: {
+    color: colors.textPrimary,
+    fontSize: typography.lg,
+    fontWeight: typography.semibold,
+    marginBottom: spacing.sm,
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#666',
+  emptySubtitle: {
+    color: colors.textSecondary,
+    fontSize: typography.base,
   },
   issueCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: colors.cardBorder,
   },
   issueHeader: {
+    flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+  },
+  issueIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  issueIcon: {
+    fontSize: 20,
+  },
+  issueTitleContainer: {
+    flex: 1,
   },
   issueTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    color: colors.textPrimary,
+    fontSize: typography.md,
+    fontWeight: typography.semibold,
+    marginBottom: 2,
   },
-  severityIcon: {
-    fontSize: 20,
-    marginRight: 8,
+  issueDate: {
+    color: colors.textMuted,
+    fontSize: typography.xs,
   },
-  issueLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    flex: 1,
+  severityBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
   },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+  severityText: {
+    fontSize: typography.xs,
+    fontWeight: typography.bold,
+    letterSpacing: 0.5,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textTransform: 'capitalize',
-  },
-  issueDetails: {
-    borderTopWidth: 1,
-    borderTopColor: '#2a2a2a',
-    paddingTop: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  detailValue: {
-    fontSize: 14,
-    color: '#ccc',
-    fontWeight: '500',
-  },
-  notesContainer: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: '#0a0a0a',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  notesLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#ccc',
-    lineHeight: 20,
-  },
-  updateStatusButton: {
-    marginTop: 12,
-    backgroundColor: '#7c3aed',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  issueArrow: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  updateStatusText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  insightCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#7c3aed',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  insightHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  insightIcon: {
+  issueArrowText: {
+    color: colors.textMuted,
     fontSize: 24,
   },
-  confidenceBadge: {
-    backgroundColor: '#2a2a2a',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+  insightCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
   },
-  confidenceText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#7c3aed',
+  insightIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primaryGlow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  insightIcon: {
+    fontSize: 18,
+  },
+  insightContent: {
+    flex: 1,
+  },
+  insightTitle: {
+    color: colors.textPrimary,
+    fontSize: typography.md,
+    fontWeight: typography.semibold,
+    marginBottom: spacing.xs,
   },
   insightText: {
-    fontSize: 16,
-    color: '#fff',
-    lineHeight: 24,
-    marginBottom: 8,
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+    lineHeight: 20,
+    marginBottom: spacing.sm,
   },
-  insightDate: {
-    fontSize: 12,
-    color: '#666',
+  viewAnalysisLink: {
+    color: colors.primary,
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
   },
-  timelineCard: {
+  timelineItem: {
     flexDirection: 'row',
-    marginBottom: 16,
-    paddingLeft: 8,
+    marginBottom: spacing.lg,
+  },
+  timelineLine: {
+    width: 24,
+    alignItems: 'center',
+    marginRight: spacing.md,
   },
   timelineDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#7c3aed',
-    marginTop: 4,
-    marginRight: 12,
+    backgroundColor: colors.primary,
+  },
+  timelineConnector: {
+    flex: 1,
+    width: 2,
+    backgroundColor: colors.cardBorder,
+    marginTop: spacing.sm,
   },
   timelineContent: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: colors.cardBorder,
   },
   timelineType: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#7c3aed',
+    color: colors.primary,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   timelineDescription: {
-    fontSize: 14,
-    color: '#ccc',
-    lineHeight: 20,
-    marginBottom: 6,
+    color: colors.textPrimary,
+    fontSize: typography.base,
+    lineHeight: 22,
+    marginBottom: spacing.sm,
   },
   timelineDate: {
-    fontSize: 12,
-    color: '#666',
+    color: colors.textMuted,
+    fontSize: typography.xs,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 24,
-    width: '85%',
-    maxWidth: 400,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  modalTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  modalSubtitle: {
-    color: '#7c3aed',
-    fontSize: 16,
-    marginBottom: 24,
+  statusOptions: {
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
   statusOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0a0a0a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#2a2a2a',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   statusOptionActive: {
-    borderColor: '#7c3aed',
-    backgroundColor: '#1a1a2e',
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryGlow,
   },
-  statusOptionIcon: {
-    fontSize: 24,
-    marginRight: 12,
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: spacing.md,
   },
   statusOptionText: {
-    flex: 1,
+    color: colors.textPrimary,
+    fontSize: typography.md,
+    fontWeight: typography.medium,
   },
-  statusOptionTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  statusOptionDesc: {
-    color: '#666',
-    fontSize: 13,
-  },
-  modalCancelButton: {
-    marginTop: 8,
-    padding: 16,
+  cancelButton: {
     alignItems: 'center',
+    padding: spacing.lg,
   },
-  modalCancelText: {
-    color: '#7c3aed',
-    fontSize: 16,
-    fontWeight: '600',
+  cancelButtonText: {
+    color: colors.primary,
+    fontSize: typography.md,
+    fontWeight: typography.semibold,
   },
 });
-

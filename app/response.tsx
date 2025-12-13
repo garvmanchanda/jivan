@@ -9,6 +9,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getConversations, getActiveProfileId } from '../services/supabaseStorage';
 import { Conversation } from '../types';
+import { colors, typography, spacing, borderRadius } from '../constants/theme';
 
 export default function ResponseScreen() {
   const router = useRouter();
@@ -16,7 +17,6 @@ export default function ResponseScreen() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
 
   useEffect(() => {
-    // Check if data was passed directly (faster path)
     if (params.query && params.summary) {
       const directConversation: Conversation = {
         id: params.conversationId as string,
@@ -31,7 +31,6 @@ export default function ResponseScreen() {
       };
       setConversation(directConversation);
     } else {
-      // Fallback: load from database (for viewing old conversations)
       loadConversation();
     }
   }, []);
@@ -48,33 +47,59 @@ export default function ResponseScreen() {
   if (!conversation) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Health Insight</Text>
+        <View style={{ width: 44 }} />
+      </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Query Display */}
-        <View style={styles.querySection}>
-          <Text style={styles.label}>You asked</Text>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Query Section */}
+        <View style={styles.queryCard}>
+          <View style={styles.queryHeader}>
+            <View style={styles.queryIconContainer}>
+              <Text style={styles.queryIcon}>💭</Text>
+            </View>
+            <Text style={styles.queryLabel}>YOUR QUESTION</Text>
+          </View>
           <Text style={styles.queryText}>{conversation.query}</Text>
         </View>
 
-        {/* Response Card */}
+        {/* Response Section */}
         <View style={styles.responseCard}>
+          <View style={styles.responseHeader}>
+            <View style={styles.responseIconContainer}>
+              <Text style={styles.responseIcon}>🌟</Text>
+            </View>
+            <Text style={styles.responseLabel}>JEEVAN'S INSIGHT</Text>
+          </View>
+          
           <Text style={styles.summaryText}>{conversation.summary}</Text>
 
           {conversation.recommendations.length > 0 && (
             <View style={styles.recommendationsSection}>
+              <Text style={styles.recommendationsTitle}>Key Points</Text>
               {conversation.recommendations.map((rec, index) => (
                 <View key={index} style={styles.recommendationItem}>
-                  <Text style={styles.bullet}>•</Text>
+                  <View style={styles.recommendationBullet}>
+                    <Text style={styles.recommendationBulletText}>{index + 1}</Text>
+                  </View>
                   <Text style={styles.recommendationText}>{rec}</Text>
                 </View>
               ))}
@@ -82,13 +107,39 @@ export default function ResponseScreen() {
           )}
         </View>
 
-        {/* Next Steps - Caring Guidance */}
+        {/* Next Steps */}
         {conversation.redFlag && (
           <View style={styles.nextStepsCard}>
-            <Text style={styles.nextStepsTitle}>💙 Next Steps</Text>
+            <View style={styles.nextStepsHeader}>
+              <Text style={styles.nextStepsIcon}>💙</Text>
+              <Text style={styles.nextStepsTitle}>Next Steps</Text>
+            </View>
             <Text style={styles.nextStepsText}>{conversation.redFlag}</Text>
           </View>
         )}
+
+        {/* Actions */}
+        <View style={styles.actionsSection}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => router.push('/record')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.actionIcon}>🎤</Text>
+            <Text style={styles.actionText}>Ask Another Question</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.actionButtonSecondary]}
+            onPress={() => router.push('/home')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.actionIcon}>🏠</Text>
+            <Text style={[styles.actionText, styles.actionTextSecondary]}>Back to Home</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -97,92 +148,212 @@ export default function ResponseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   backButton: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  backText: {
-    color: '#7c3aed',
-    fontSize: 16,
+  backIcon: {
+    color: colors.textPrimary,
+    fontSize: 24,
+  },
+  headerTitle: {
+    color: colors.textPrimary,
+    fontSize: typography.lg,
+    fontWeight: typography.semibold,
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
-    color: '#fff',
-    fontSize: 18,
-    textAlign: 'center',
-    marginTop: 100,
+    color: colors.textSecondary,
+    fontSize: typography.lg,
   },
-  querySection: {
-    marginBottom: 24,
+  queryCard: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
-  label: {
-    color: '#666',
-    fontSize: 14,
-    marginBottom: 8,
-    textTransform: 'uppercase',
+  queryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  queryIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  queryIcon: {
+    fontSize: 16,
+  },
+  queryLabel: {
+    color: colors.textMuted,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
     letterSpacing: 1,
   },
   queryText: {
-    color: '#fff',
-    fontSize: 18,
+    color: colors.textPrimary,
+    fontSize: typography.lg,
+    lineHeight: 26,
   },
   responseCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  responseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  responseIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryGlow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  responseIcon: {
+    fontSize: 18,
+  },
+  responseLabel: {
+    color: colors.primary,
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    letterSpacing: 1,
   },
   summaryText: {
-    color: '#fff',
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 16,
+    color: colors.textPrimary,
+    fontSize: typography.md,
+    lineHeight: 26,
+    marginBottom: spacing.xl,
   },
   recommendationsSection: {
-    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+    paddingTop: spacing.xl,
+  },
+  recommendationsTitle: {
+    color: colors.textSecondary,
+    fontSize: typography.sm,
+    fontWeight: typography.semibold,
+    marginBottom: spacing.lg,
+    letterSpacing: 0.5,
   },
   recommendationItem: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  bullet: {
-    color: '#7c3aed',
-    fontSize: 16,
-    marginRight: 8,
+  recommendationBullet: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primaryGlow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
     marginTop: 2,
   },
+  recommendationBulletText: {
+    color: colors.primary,
+    fontSize: typography.xs,
+    fontWeight: typography.bold,
+  },
   recommendationText: {
-    color: '#ccc',
-    fontSize: 15,
-    lineHeight: 22,
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    lineHeight: 24,
     flex: 1,
   },
   nextStepsCard: {
-    backgroundColor: '#1a1f2e',
-    borderRadius: 12,
-    padding: 18,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xxl,
     borderLeftWidth: 4,
-    borderLeftColor: '#60a5fa',
+    borderLeftColor: colors.accentBlue,
+  },
+  nextStepsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  nextStepsIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
   },
   nextStepsTitle: {
-    color: '#93c5fd',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
+    color: colors.accentBlue,
+    fontSize: typography.md,
+    fontWeight: typography.semibold,
   },
   nextStepsText: {
-    color: '#d1d5db',
-    fontSize: 14,
-    lineHeight: 22,
+    color: colors.textSecondary,
+    fontSize: typography.base,
+    lineHeight: 24,
+  },
+  actionsSection: {
+    gap: spacing.md,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.lg,
+    gap: spacing.sm,
+  },
+  actionButtonSecondary: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  actionIcon: {
+    fontSize: 18,
+  },
+  actionText: {
+    color: colors.textPrimary,
+    fontSize: typography.md,
+    fontWeight: typography.semibold,
+  },
+  actionTextSecondary: {
+    color: colors.textSecondary,
   },
 });
-

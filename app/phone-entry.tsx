@@ -5,65 +5,62 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getUserByPhone, createUser, getProfiles, setCurrentUserId, setActiveProfileId } from '../services/supabaseStorage';
 import { clearOldLocalData } from '../services/migrateToSupabase';
+import { AlertModal } from '../components/CustomModal';
+import { colors, typography, spacing, borderRadius, shadows } from '../constants/theme';
 
 export default function PhoneEntryScreen() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
+  const showAlert = (title: string, message: string) => {
+    setAlertConfig({ title, message });
+    setAlertVisible(true);
+  };
 
   const handleContinue = async () => {
-    // Validate phone number
     if (phoneNumber.length !== 10) {
-      Alert.alert('Invalid Number', 'Please enter a valid 10-digit mobile number');
+      showAlert('Invalid Number', 'Please enter a valid 10-digit mobile number');
       return;
     }
 
     if (!/^\d{10}$/.test(phoneNumber)) {
-      Alert.alert('Invalid Number', 'Phone number should contain only digits');
+      showAlert('Invalid Number', 'Phone number should contain only digits');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Check if user already exists in Supabase
       const existingUser = await getUserByPhone(phoneNumber);
       
       if (existingUser) {
-        // Returning user
         console.log('Returning user found:', existingUser.id);
         await setCurrentUserId(existingUser.id);
-        
-        // Clean up old local data (migration)
         await clearOldLocalData();
         
-        // Check if they have any profiles
         const profiles = await getProfiles(existingUser.id);
         
         if (profiles.length > 0) {
-          // Has profiles - set first one as active and go to home
           await setActiveProfileId(profiles[0].id);
           console.log('User has profiles, auto-selected first profile, going to home');
           router.replace('/home');
         } else {
-          // No profiles - go to onboarding
           console.log('User has no profiles, going to onboarding');
           router.replace('/onboarding-profile');
         }
       } else {
-        // New user - create in database
         console.log('New user, creating account');
         const newUser = await createUser(phoneNumber);
         await setCurrentUserId(newUser.id);
-        
-        // Clean up old local data (migration)
         await clearOldLocalData();
         
         console.log('New user created, going to onboarding');
@@ -71,14 +68,13 @@ export default function PhoneEntryScreen() {
       }
     } catch (error) {
       console.error('Error checking user:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      showAlert('Error', 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const formatPhoneNumber = (text: string) => {
-    // Only allow digits and limit to 10
     const cleaned = text.replace(/\D/g, '');
     return cleaned.substring(0, 10);
   };
@@ -88,6 +84,17 @@ export default function PhoneEntryScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Back Button */}
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <Text style={styles.backIcon}>←</Text>
+      </TouchableOpacity>
+
+      {/* Progress Indicator */}
+      <View style={styles.progressContainer}>
+        <View style={styles.progressDotActive} />
+        <View style={styles.progressDot} />
+      </View>
+
       <View style={styles.content}>
         <Text style={styles.title}>Enter your mobile number</Text>
         <Text style={styles.subtitle}>
@@ -106,7 +113,7 @@ export default function PhoneEntryScreen() {
           <TextInput
             style={styles.phoneInput}
             placeholder="Mobile number"
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.textMuted}
             value={phoneNumber}
             onChangeText={(text) => setPhoneNumber(formatPhoneNumber(text))}
             keyboardType="phone-pad"
@@ -122,8 +129,9 @@ export default function PhoneEntryScreen() {
             ]}
             onPress={handleContinue}
             disabled={phoneNumber.length !== 10 || isLoading}
+            activeOpacity={0.8}
           >
-            <Text style={styles.continueIcon}>→</Text>
+            <Text style={styles.continueIcon}>{isLoading ? '...' : '→'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -132,6 +140,13 @@ export default function PhoneEntryScreen() {
           {phoneNumber.length}/10 digits
         </Text>
       </View>
+
+      <AlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={[{ text: 'OK', onPress: () => setAlertVisible(false) }]}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -139,81 +154,118 @@ export default function PhoneEntryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 60,
+    left: spacing.xl,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backIcon: {
+    color: colors.textPrimary,
+    fontSize: 24,
+    fontWeight: typography.medium,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: 70,
+  },
+  progressDotActive: {
+    width: 24,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  progressDot: {
+    width: 24,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.backgroundTertiary,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: spacing.xxxl,
   },
   title: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 12,
+    color: colors.textPrimary,
+    fontSize: typography.xxl,
+    fontWeight: typography.bold,
+    marginBottom: spacing.md,
     textAlign: 'center',
   },
   subtitle: {
-    color: '#888',
-    fontSize: 16,
+    color: colors.textSecondary,
+    fontSize: typography.base,
     textAlign: 'center',
     marginBottom: 48,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   phoneInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 4,
-    borderWidth: 2,
-    borderColor: '#333',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   countrySection: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 12,
+    paddingRight: spacing.lg,
     borderRightWidth: 1,
-    borderRightColor: '#333',
+    borderRightColor: colors.cardBorder,
   },
   flag: {
-    fontSize: 24,
-    marginRight: 8,
+    fontSize: 22,
+    marginRight: spacing.sm,
   },
   countryCode: {
-    color: '#666',
-    fontSize: 18,
-    fontWeight: '600',
+    color: colors.textMuted,
+    fontSize: typography.lg,
+    fontWeight: typography.semibold,
   },
   phoneInput: {
     flex: 1,
-    color: '#fff',
-    fontSize: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    color: colors.textPrimary,
+    fontSize: typography.xl,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    fontWeight: typography.medium,
   },
   continueButton: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: '#7c3aed',
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    ...shadows.button,
   },
   continueButtonDisabled: {
-    backgroundColor: '#333',
+    backgroundColor: colors.backgroundTertiary,
+    shadowOpacity: 0,
   },
   continueIcon: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+    color: colors.textPrimary,
+    fontSize: 22,
+    fontWeight: typography.bold,
   },
   helperText: {
-    color: '#666',
-    fontSize: 14,
+    color: colors.textMuted,
+    fontSize: typography.sm,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
 });
-
