@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getActiveIssues, getInsights, getEventMemory } from '../services/ai';
 import { ActiveIssue, Insight, EventMemory } from '../types';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://gzmfehoyqyjydegwgbjz.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function HealthJourney() {
   const router = useRouter();
@@ -13,6 +19,8 @@ export default function HealthJourney() {
   const [recentEvents, setRecentEvents] = useState<EventMemory[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'issues' | 'insights' | 'timeline'>('issues');
+  const [selectedIssue, setSelectedIssue] = useState<ActiveIssue | null>(null);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
 
   useEffect(() => {
     loadHealthJourneyData();
@@ -60,15 +68,52 @@ export default function HealthJourney() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (!dateString) return 'Unknown';
+    
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-    return `${Math.floor(diffDays / 30)} months ago`;
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+      return `${Math.floor(diffDays / 30)} months ago`;
+    } catch (error) {
+      return 'Unknown';
+    }
+  };
+
+  const handleUpdateIssueStatus = async (newStatus: string) => {
+    if (!selectedIssue) return;
+
+    try {
+      const { error } = await supabase
+        .from('active_issues')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedIssue.id);
+
+      if (error) throw error;
+
+      setStatusModalVisible(false);
+      setSelectedIssue(null);
+      await loadHealthJourneyData(); // Reload data
+      
+      Alert.alert('Success', `Issue marked as ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating issue:', error);
+      Alert.alert('Error', 'Failed to update issue status');
+    }
+  };
+
+  const openStatusModal = (issue: ActiveIssue) => {
+    setSelectedIssue(issue);
+    setStatusModalVisible(true);
   };
 
   const renderIssues = () => (
@@ -107,6 +152,13 @@ export default function HealthJourney() {
                   <Text style={styles.notesText}>{issue.notes}</Text>
                 </View>
               )}
+              
+              <TouchableOpacity 
+                style={styles.updateStatusButton}
+                onPress={() => openStatusModal(issue)}
+              >
+                <Text style={styles.updateStatusText}>Update Status</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ))
@@ -238,6 +290,74 @@ export default function HealthJourney() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Status Update Modal */}
+      <Modal
+        visible={statusModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setStatusModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Update Issue Status</Text>
+            <Text style={styles.modalSubtitle}>
+              {selectedIssue?.label}
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.statusOption, selectedIssue?.status === 'active' && styles.statusOptionActive]}
+              onPress={() => handleUpdateIssueStatus('active')}
+            >
+              <Text style={styles.statusOptionIcon}>🔴</Text>
+              <View style={styles.statusOptionText}>
+                <Text style={styles.statusOptionTitle}>Active</Text>
+                <Text style={styles.statusOptionDesc}>Issue is ongoing</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statusOption, selectedIssue?.status === 'improving' && styles.statusOptionActive]}
+              onPress={() => handleUpdateIssueStatus('improving')}
+            >
+              <Text style={styles.statusOptionIcon}>🟢</Text>
+              <View style={styles.statusOptionText}>
+                <Text style={styles.statusOptionTitle}>Improving</Text>
+                <Text style={styles.statusOptionDesc}>Getting better</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statusOption, selectedIssue?.status === 'monitoring' && styles.statusOptionActive]}
+              onPress={() => handleUpdateIssueStatus('monitoring')}
+            >
+              <Text style={styles.statusOptionIcon}>🟡</Text>
+              <View style={styles.statusOptionText}>
+                <Text style={styles.statusOptionTitle}>Monitoring</Text>
+                <Text style={styles.statusOptionDesc}>Watching closely</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statusOption, selectedIssue?.status === 'resolved' && styles.statusOptionActive]}
+              onPress={() => handleUpdateIssueStatus('resolved')}
+            >
+              <Text style={styles.statusOptionIcon}>✅</Text>
+              <View style={styles.statusOptionText}>
+                <Text style={styles.statusOptionTitle}>Resolved</Text>
+                <Text style={styles.statusOptionDesc}>Issue is resolved</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setStatusModalVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -245,7 +365,7 @@ export default function HealthJourney() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#000',
   },
   header: {
     flexDirection: 'row',
@@ -254,32 +374,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000',
   },
   backButton: {
     fontSize: 32,
-    color: '#4A90E2',
+    color: '#7c3aed',
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: '#fff',
   },
   profileBanner: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#1a1a1a',
     paddingVertical: 12,
     paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
   },
   profileName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#7c3aed',
     textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#000',
   },
   loadingText: {
     marginTop: 16,
@@ -288,11 +411,11 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000',
     paddingHorizontal: 20,
     paddingTop: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E8EBF0',
+    borderBottomColor: '#2a2a2a',
   },
   tab: {
     flex: 1,
@@ -302,15 +425,15 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#4A90E2',
+    borderBottomColor: '#7c3aed',
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#999',
+    color: '#666',
   },
   activeTabText: {
-    color: '#4A90E2',
+    color: '#7c3aed',
   },
   content: {
     flex: 1,
@@ -329,23 +452,20 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: '#fff',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: '#666',
   },
   issueCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
   issueHeader: {
     flexDirection: 'row',
@@ -365,7 +485,7 @@ const styles = StyleSheet.create({
   issueLabel: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: '#fff',
     flex: 1,
   },
   statusBadge: {
@@ -381,7 +501,7 @@ const styles = StyleSheet.create({
   },
   issueDetails: {
     borderTopWidth: 1,
-    borderTopColor: '#E8EBF0',
+    borderTopColor: '#2a2a2a',
     paddingTop: 12,
   },
   detailRow: {
@@ -391,36 +511,53 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#999',
+    color: '#666',
   },
   detailValue: {
     fontSize: 14,
-    color: '#333',
+    color: '#ccc',
     fontWeight: '500',
   },
   notesContainer: {
     marginTop: 8,
     padding: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#0a0a0a',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
   notesLabel: {
     fontSize: 12,
-    color: '#999',
+    color: '#666',
     marginBottom: 4,
   },
   notesText: {
     fontSize: 14,
-    color: '#333',
+    color: '#ccc',
     lineHeight: 20,
   },
+  updateStatusButton: {
+    marginTop: 12,
+    backgroundColor: '#7c3aed',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  updateStatusText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   insightCard: {
-    backgroundColor: '#FFFBEA',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#FFC107',
+    borderLeftColor: '#7c3aed',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
   insightHeader: {
     flexDirection: 'row',
@@ -432,7 +569,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   confidenceBadge: {
-    backgroundColor: '#FFF3CD',
+    backgroundColor: '#2a2a2a',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -440,17 +577,17 @@ const styles = StyleSheet.create({
   confidenceText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#856404',
+    color: '#7c3aed',
   },
   insightText: {
     fontSize: 16,
-    color: '#1A1A1A',
+    color: '#fff',
     lineHeight: 24,
     marginBottom: 8,
   },
   insightDate: {
     fontSize: 12,
-    color: '#999',
+    color: '#666',
   },
   timelineCard: {
     flexDirection: 'row',
@@ -461,37 +598,101 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#7c3aed',
     marginTop: 4,
     marginRight: 12,
   },
   timelineContent: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
   timelineType: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#4A90E2',
+    color: '#7c3aed',
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   timelineDescription: {
     fontSize: 14,
-    color: '#333',
+    color: '#ccc',
     lineHeight: 20,
     marginBottom: 6,
   },
   timelineDate: {
     fontSize: 12,
-    color: '#999',
+    color: '#666',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    color: '#7c3aed',
+    fontSize: 16,
+    marginBottom: 24,
+  },
+  statusOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0a0a0a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#2a2a2a',
+  },
+  statusOptionActive: {
+    borderColor: '#7c3aed',
+    backgroundColor: '#1a1a2e',
+  },
+  statusOptionIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  statusOptionText: {
+    flex: 1,
+  },
+  statusOptionTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  statusOptionDesc: {
+    color: '#666',
+    fontSize: 13,
+  },
+  modalCancelButton: {
+    marginTop: 8,
+    padding: 16,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#7c3aed',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
